@@ -89,9 +89,10 @@ function syncHud() {
   kingBar.style.transform = `scaleX(${ratio})`;
 
   if (h.phase === "placeStarter") {
-    hudHint.textContent = "点击一条传送带，放置你的第一个布丁。";
+    hudHint.textContent = "在纵向传送带上点击，布丁会出现在你点的高度。";
   } else if (h.phase === "combat") {
-    hudHint.textContent = "拖动传送带可切换所在路线，让布丁攻击对应道路上的幽灵。";
+    hudHint.textContent =
+      "在传送带区域上下拖动可卷动环轨；布丁到底会从上方瞬移接上。布丁所在高度决定攻击哪一路。";
   } else if (h.phase === "shop") {
     hudHint.textContent = "在商店购买新布丁或强化，然后进入下一波。";
   } else if (h.phase === "menu") {
@@ -147,7 +148,7 @@ canvas.addEventListener("pointerdown", (ev) => {
   const [mx, my] = canvasPoint(ev.clientX, ev.clientY);
   const r = game.onPointerDown(mx, my);
   if (r && r.type === "place") {
-    game.placeStarterOnBelt(r.belt);
+    game.placeStarterOnBelt(r.belt, mx, my);
     syncOverlays();
     syncHud();
   }

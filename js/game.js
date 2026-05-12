@@ -6,19 +6,29 @@ const CANVAS_W = 1200;
 const CANVAS_H = 640;
 const PLAY_TOP = 72;
 const PLAY_BOTTOM = CANVAS_H - 24;
+const PLAY_H = PLAY_BOTTOM - PLAY_TOP;
 const KING_X1 = 18;
 const KING_X2 = 108;
 const BELT_X0 = 120;
 const BELT_X1 = CANVAS_W - 40;
 const SPAWN_X = CANVAS_W - 20;
+/** 纵向传送带中心 X（三条平行环轨） */
+const BELT_CENTERS_X = [340, 600, 860];
+const BELT_HIT_HW = 32;
 
 function laneCenterY(lane) {
-  const h = (PLAY_BOTTOM - PLAY_TOP) / LANES;
+  const h = PLAY_H / LANES;
   return PLAY_TOP + h * (lane + 0.5);
 }
 
 function clamp(v, a, b) {
   return Math.max(a, Math.min(b, v));
+}
+
+function modPos(v, H = PLAY_H) {
+  let m = v % H;
+  if (m < 0) m += H;
+  return m;
 }
 
 function dist(ax, ay, bx, by) {
@@ -27,8 +37,14 @@ function dist(ax, ay, bx, by) {
   return Math.hypot(dx, dy);
 }
 
-function makeDefender() {
+function yToLane(y) {
+  const h = PLAY_H / LANES;
+  return clamp(Math.floor((y - PLAY_TOP) / h), 0, LANES - 1);
+}
+
+function makeDefender(alongPx) {
   return {
+    along: typeof alongPx === "number" ? alongPx : PLAY_H * 0.42,
     damage: 12,
     attackCd: 0,
     attackInterval: 0.55,
@@ -53,7 +69,7 @@ export class Game {
     this.global = { dmg: 1, asp: 1, range: 1 };
     this.starterPlaced = false;
     this.draggingBelt = null;
-    this.dragOffsetY = 0;
+    this.dragLastMy = 0;
     this.enemies = [];
     this.spawnQueue = 0;
     this.spawnTimer = 0;
@@ -68,7 +84,9 @@ export class Game {
     for (let i = 0; i < BELT_COUNT; i++) {
       this.belts.push({
         id: i,
-        lane: i % LANES,
+        x: BELT_CENTERS_X[i],
+        /** 环轨卷动量（像素）：上下拖动改变，布丁屏幕位置 = along + scroll 对环长取模 */
+        scroll: i * 40,
         defender: null,
       });
     }
@@ -80,15 +98,30 @@ export class Game {
     this.gold = 8;
   }
 
-  /** 点击某条传送带索引 0..2，放置开局布丁 */
-  placeStarterOnBelt(beltIndex) {
+  /** 布丁在屏幕上的位置与当前所在攻击路 */
+  getDefenderPos(belt) {
+    const d = belt.defender;
+    if (!d) return null;
+    const y = PLAY_TOP + modPos(d.along + belt.scroll);
+    const lane = yToLane(y);
+    return { x: belt.x, y, lane };
+  }
+
+  /** 点击某条传送带放置开局布丁；mx,my 用于把布丁摆在环上的对应高度 */
+  placeStarterOnBelt(beltIndex, mx, my) {
     const b = this.belts[beltIndex];
     if (!b || b.defender) return false;
-    b.defender = makeDefender();
+    const along = this.pointerToAlong(b, mx, my);
+    b.defender = makeDefender(along);
     this.starterPlaced = true;
     this.phase = "combat";
     this.beginWave();
     return true;
+  }
+
+  /** 屏幕坐标 → 环上 along（0..PLAY_H） */
+  pointerToAlong(belt, mx, my) {
+    return modPos(my - PLAY_TOP - belt.scroll);
   }
 
   beginWave() {
@@ -101,19 +134,16 @@ export class Game {
     this.enemies = [];
   }
 
-  /** 世界坐标：哪条传送带被点中（含拖动命中） */
   pickBeltAt(mx, my) {
+    if (my < PLAY_TOP || my > PLAY_BOTTOM) return null;
     let best = null;
-    let bestDy = Infinity;
+    let bestDx = Infinity;
     for (let i = 0; i < this.belts.length; i++) {
       const belt = this.belts[i];
-      const y = laneCenterY(belt.lane);
-      if (mx >= BELT_X0 && mx <= BELT_X1) {
-        const dy = Math.abs(my - y);
-        if (dy < 38 && dy < bestDy) {
-          bestDy = dy;
-          best = i;
-        }
+      const dx = Math.abs(mx - belt.x);
+      if (dx <= BELT_HIT_HW && dx < bestDx) {
+        bestDx = dx;
+        best = i;
       }
     }
     return best;
@@ -129,8 +159,7 @@ export class Game {
     const idx = this.pickBeltAt(mx, my);
     if (idx !== null) {
       this.draggingBelt = idx;
-      const y = laneCenterY(this.belts[idx].lane);
-      this.dragOffsetY = my - y;
+      this.dragLastMy = my;
       return { type: "drag" };
     }
     return null;
@@ -139,13 +168,16 @@ export class Game {
   onPointerMove(mx, my) {
     if (this.draggingBelt === null) return;
     const belt = this.belts[this.draggingBelt];
-    const h = (PLAY_BOTTOM - PLAY_TOP) / LANES;
-    const targetY = my - this.dragOffsetY;
-    const laneFloat = (targetY - PLAY_TOP) / h - 0.5;
-    belt.lane = clamp(Math.round(laneFloat), 0, LANES - 1);
+    const dy = my - this.dragLastMy;
+    this.dragLastMy = my;
+    belt.scroll += dy;
   }
 
   onPointerUp() {
+    if (this.draggingBelt !== null) {
+      const belt = this.belts[this.draggingBelt];
+      belt.scroll = modPos(belt.scroll);
+    }
     this.draggingBelt = null;
   }
 
@@ -251,14 +283,15 @@ export class Game {
       const d = belt.defender;
       if (!d) continue;
       d.attackCd -= dt;
-      const ax = 150;
-      const ay = laneCenterY(belt.lane);
+      const pos = this.getDefenderPos(belt);
+      if (!pos) continue;
+      const { x: ax, y: ay, lane } = pos;
       const range = d.range * this.global.range;
       let target = null;
       let best = Infinity;
       for (const e of this.enemies) {
-        if (e.lane !== belt.lane) continue;
-        const dd = dist(ax, ay, e.x, ay);
+        if (e.lane !== lane) continue;
+        const dd = dist(ax, ay, e.x, laneCenterY(e.lane));
         if (dd <= range && e.x < best) {
           best = e.x;
           target = e;
@@ -274,7 +307,7 @@ export class Game {
           x1: ax,
           y1: ay,
           x2: target.x,
-          y2: ay,
+          y2: laneCenterY(target.lane),
           t: 0,
           dur: 0.08,
         });
@@ -305,20 +338,18 @@ export class Game {
     const ctx = this.ctx;
     ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
 
-    // 背景格
     ctx.fillStyle = "#12162a";
     ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
     ctx.strokeStyle = "rgba(255,255,255,0.04)";
     ctx.lineWidth = 1;
     for (let i = 0; i <= LANES; i++) {
-      const y = PLAY_TOP + ((PLAY_BOTTOM - PLAY_TOP) / LANES) * i;
+      const y = PLAY_TOP + (PLAY_H / LANES) * i;
       ctx.beginPath();
       ctx.moveTo(BELT_X0, y);
       ctx.lineTo(BELT_X1, y);
       ctx.stroke();
     }
 
-    // 国王区
     const grd = ctx.createLinearGradient(KING_X1, 0, KING_X2, 0);
     grd.addColorStop(0, "rgba(255, 200, 120, 0.25)");
     grd.addColorStop(1, "rgba(255, 160, 200, 0.08)");
@@ -326,25 +357,25 @@ export class Game {
     ctx.fillRect(KING_X1, PLAY_TOP, KING_X2 - KING_X1, PLAY_BOTTOM - PLAY_TOP);
     this.drawKing(ctx);
 
-    // 五路浅带
-    const laneH = (PLAY_BOTTOM - PLAY_TOP) / LANES;
+    const laneH = PLAY_H / LANES;
     for (let i = 0; i < LANES; i++) {
       const y0 = PLAY_TOP + laneH * i;
       ctx.fillStyle = i % 2 === 0 ? "rgba(255,255,255,0.02)" : "rgba(255,255,255,0.04)";
       ctx.fillRect(BELT_X0, y0, BELT_X1 - BELT_X0, laneH);
     }
 
-    // 传送带
     for (const belt of this.belts) {
-      this.drawBelt(ctx, belt);
+      this.drawVerticalBeltTrack(ctx, belt);
     }
 
-    // 敌人
     for (const e of this.enemies) {
       this.drawEnemy(ctx, e);
     }
 
-    // 飞弹
+    for (const belt of this.belts) {
+      this.drawBeltPudding(ctx, belt);
+    }
+
     for (const p of this.projectiles) {
       const k = clamp(p.t / p.dur, 0, 1);
       const x = p.x1 + (p.x2 - p.x1) * k;
@@ -355,7 +386,6 @@ export class Game {
       ctx.fill();
     }
 
-    // 飘字
     ctx.font = "600 14px Segoe UI, PingFang SC, Microsoft YaHei, sans-serif";
     ctx.textAlign = "center";
     for (const ft of this.floatTexts) {
@@ -363,7 +393,6 @@ export class Game {
       ctx.fillText(ft.text, ft.x, ft.y);
     }
 
-    // 波次角标
     ctx.fillStyle = "rgba(255,255,255,0.35)";
     ctx.font = "12px monospace";
     ctx.textAlign = "right";
@@ -375,8 +404,6 @@ export class Game {
     const cy = (PLAY_TOP + PLAY_BOTTOM) / 2;
     ctx.save();
     ctx.translate(cx, cy);
-    ctx.scale(1, 1);
-    // 身体
     ctx.fillStyle = "#ffd79a";
     ctx.beginPath();
     ctx.ellipse(0, 6, 34, 40, 0, 0, Math.PI * 2);
@@ -384,7 +411,6 @@ export class Game {
     ctx.strokeStyle = "rgba(120,80,40,0.35)";
     ctx.lineWidth = 2;
     ctx.stroke();
-    // 小皇冠
     ctx.fillStyle = "#ffe566";
     ctx.beginPath();
     ctx.moveTo(-18, -28);
@@ -399,33 +425,56 @@ export class Game {
     ctx.restore();
   }
 
-  drawBelt(ctx, belt) {
-    const y = laneCenterY(belt.lane);
+  drawVerticalBeltTrack(ctx, belt) {
+    const x = belt.x;
+    const hw = 24;
+    const top = PLAY_TOP;
+    const bot = PLAY_BOTTOM;
     ctx.save();
-    ctx.strokeStyle = "rgba(122, 231, 199, 0.55)";
-    ctx.lineWidth = 3;
-    ctx.setLineDash([14, 10]);
+    ctx.fillStyle = "rgba(18, 28, 48, 0.55)";
+    ctx.fillRect(x - hw, top, hw * 2, bot - top);
+    ctx.strokeStyle = "rgba(122, 231, 199, 0.35)";
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x - hw + 0.75, top + 0.75, hw * 2 - 1.5, bot - top - 1.5);
+
+    ctx.strokeStyle = "rgba(122, 231, 199, 0.5)";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([8, 10]);
+    const dashOff = modPos(belt.scroll * 1.2);
+    ctx.lineDashOffset = -dashOff;
     ctx.beginPath();
-    ctx.moveTo(BELT_X0, y);
-    ctx.lineTo(BELT_X1, y);
+    ctx.moveTo(x, top);
+    ctx.lineTo(x, bot);
     ctx.stroke();
     ctx.setLineDash([]);
-    // 寿司碟感：椭圆板
-    ctx.fillStyle = "rgba(255,255,255,0.08)";
+    ctx.lineDashOffset = 0;
+
+    ctx.strokeStyle = "rgba(255,255,255,0.12)";
     ctx.beginPath();
-    ctx.ellipse(150, y, 46, 18, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "rgba(255,255,255,0.2)";
-    ctx.lineWidth = 1.2;
+    ctx.arc(x, top, hw, 0, Math.PI, true);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(x, bot, hw, Math.PI, 0, true);
     ctx.stroke();
 
-    if (belt.defender) {
-      this.drawDefenderPudding(ctx, 150, y, belt.id);
+    ctx.fillStyle = "rgba(122, 231, 199, 0.2)";
+    ctx.font = "11px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("↻", x, top - 6);
+    ctx.fillText("↻", x, bot + 16);
+    ctx.restore();
+  }
+
+  drawBeltPudding(ctx, belt) {
+    const pos = this.getDefenderPos(belt);
+    ctx.save();
+    if (belt.defender && pos) {
+      this.drawDefenderPudding(ctx, pos.x, pos.y, belt.id);
     } else if (this.phase === "placeStarter") {
-      ctx.fillStyle = "rgba(255,255,255,0.25)";
+      ctx.fillStyle = "rgba(255,255,255,0.22)";
       ctx.font = "12px sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText("点击放置", 150, y + 4);
+      ctx.fillText("点击放置", belt.x, PLAY_TOP + PLAY_H * 0.5);
     }
     ctx.restore();
   }
@@ -458,7 +507,6 @@ export class Game {
     ctx.strokeStyle = "rgba(255,255,255,0.35)";
     ctx.lineWidth = 2;
     ctx.stroke();
-    // 血条
     const w = e.boss ? 80 : 44;
     ctx.fillStyle = "rgba(0,0,0,0.45)";
     ctx.fillRect(e.x - w / 2, y - r - 14, w, 6);
@@ -466,7 +514,6 @@ export class Game {
     ctx.fillRect(e.x - w / 2, y - r - 14, w * clamp(e.hp / e.maxHp, 0, 1), 6);
   }
 
-  /** 商店：生成随机商品 */
   rollShopOffers() {
     const pool = [];
     const emptyBelts = this.belts.filter((b) => !b.defender).length;
@@ -474,12 +521,14 @@ export class Game {
       pool.push({
         id: "pudding",
         title: "布丁守卫",
-        desc: "在一条空传送带上摆放新的布丁。",
+        desc: "在一条空的纵向传送带上摆放新的布丁。",
         price: 22 + this.wave * 2,
         canBuy: () => this.belts.some((b) => !b.defender),
         buy: () => {
           const slot = this.belts.find((b) => !b.defender);
-          if (slot) slot.defender = makeDefender();
+          if (slot) {
+            slot.defender = makeDefender(PLAY_H * (0.12 + Math.random() * 0.76));
+          }
         },
       });
     }
