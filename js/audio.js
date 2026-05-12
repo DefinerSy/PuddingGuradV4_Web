@@ -15,6 +15,8 @@ let bgmMode = "off";
 let lastKingSfx = 0;
 let lastShootSfx = 0;
 let lastProjHitSfx = 0;
+let lastUiSfx = 0;
+let lastShootSplitSfx = 0;
 let endedSfxPlayed = false;
 
 function loadPrefs() {
@@ -347,18 +349,55 @@ export function sfxMerge() {
 export function sfxShoot() {
   if (muted || !ctx) return;
   const t = performance.now();
-  if (t - lastShootSfx < 45) return;
+  if (t - lastShootSfx < 52) return;
   lastShootSfx = t;
-  noiseBurst(0.022, 0.028, 3200);
+  noiseBurst(0.038, 0.075, 4800);
+  beep({ freq: 420, duration: 0.045, peak: 0.1, type: "triangle", freqEnd: 1180 });
+  window.setTimeout(() => {
+    if (muted || !ctx) return;
+    beep({ freq: 2100, duration: 0.028, peak: 0.055, type: "sine", freqEnd: 2600 });
+  }, 14);
+}
+
+/** 分裂子弹等次要发射，音量略低。 */
+export function sfxShootSplit() {
+  if (muted || !ctx) return;
+  const t = performance.now();
+  if (t - lastShootSplitSfx < 40) return;
+  lastShootSplitSfx = t;
+  noiseBurst(0.022, 0.04, 5200);
+  beep({ freq: 900, duration: 0.03, peak: 0.055, type: "triangle", freqEnd: 1600 });
 }
 
 export function sfxHitEnemy(seed = 0) {
   if (muted || !ctx) return;
   const t = performance.now();
-  if (t - lastProjHitSfx < 28) return;
+  if (t - lastProjHitSfx < 22) return;
   lastProjHitSfx = t;
-  const base = 200 + (seed % 5) * 28;
-  beep({ freq: base + 50, duration: 0.045, peak: 0.08, type: "sine", freqEnd: base });
+  const base = 260 + (Math.abs(seed) % 8) * 24;
+  noiseBurst(0.048, 0.09, 2400);
+  beep({ freq: base + 140, duration: 0.06, peak: 0.13, type: "triangle", freqEnd: base });
+  window.setTimeout(() => {
+    if (muted || !ctx) return;
+    beep({ freq: base * 2.4, duration: 0.035, peak: 0.06, type: "sine" });
+  }, 10);
+}
+
+export function sfxUiClick() {
+  if (muted || !ctx) return;
+  const t = performance.now();
+  if (t - lastUiSfx < 28) return;
+  lastUiSfx = t;
+  noiseBurst(0.01, 0.04, 6200);
+  beep({ freq: 920, duration: 0.032, peak: 0.065, type: "sine", freqEnd: 1320 });
+}
+
+export function sfxUiDeny() {
+  if (muted || !ctx) return;
+  const t = performance.now();
+  if (t - lastUiSfx < 28) return;
+  lastUiSfx = t;
+  beep({ freq: 200, duration: 0.07, peak: 0.06, type: "triangle", freqEnd: 110 });
 }
 
 export function sfxEnemyDeath() {

@@ -16,6 +16,7 @@ import {
   sfxPlacePudding,
   sfxRangedFire,
   sfxShoot,
+  sfxShootSplit,
 } from "./audio.js";
 
 const LANES = 5;
@@ -841,6 +842,7 @@ export class Game {
                if (splits >= 2) break;
              }
            }
+           if (splits > 0) sfxShootSplit();
          }
          return false;
       }

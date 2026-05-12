@@ -6,6 +6,8 @@ import {
   setMuted,
   sfxBuy,
   sfxReroll,
+  sfxUiClick,
+  sfxUiDeny,
   syncBgmToPhase,
   unlockAudioFromGesture,
 } from "./audio.js";
@@ -48,6 +50,24 @@ const endTitle = el("end-title");
 const endDesc = el("end-desc");
 const tooltip = el("tooltip");
 const btnAudioMute = el("btn-audio-mute");
+const appRoot = el("app");
+
+appRoot?.addEventListener(
+  "pointerdown",
+  (e) => {
+    if (e.button !== 0) return;
+    const t = e.target;
+    if (!(t instanceof Element)) return;
+    const card = t.closest(".shop-card");
+    if (card) {
+      if (card.classList.contains("disabled")) sfxUiDeny();
+      else sfxUiClick();
+      return;
+    }
+    if (t.closest("button")) sfxUiClick();
+  },
+  { passive: true }
+);
 
 function updateAudioMuteLabel() {
   if (btnAudioMute)
