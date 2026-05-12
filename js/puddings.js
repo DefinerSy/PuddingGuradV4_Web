@@ -139,6 +139,17 @@ export const PUDDING_TYPES = {
     hue: 268,
     mechanic: "buff_killcharge"
   },
+  /** 不自动射击：拖到环轨外侧战场区域松手释放范围轰炸（击退+伤害），有冷却；等级越高冷却越短 */
+  cob_cannon: {
+    name: "玉米加农炮布丁",
+    traits: ["thick", "lucky"],
+    baseDamage: 0,
+    baseInterval: 999,
+    baseRange: 0,
+    baseHp: 130,
+    hue: 48,
+    mechanic: "cob_bombard"
+  },
   grape: {
     name: "葡萄连弹",
     traits: ["rapid"],
@@ -167,6 +178,7 @@ export function rollShopPuddingTypeId() {
   const weights = ids.map((id) => {
     const m = PUDDING_TYPES[id].mechanic;
     if (m === "defender" || (m && String(m).startsWith("buff_"))) return 2.85;
+    if (m === "cob_bombard") return 2.35;
     return 1;
   });
   let total = 0;
@@ -205,6 +217,11 @@ export function makePudding(typeId, level = 1) {
     const baseAura = 4.1;
     pud.killChargeAuraInterval = baseAura / (1 + 0.18 * (lv - 1));
     pud.killChargeAuraTimer = 1.2 + Math.random() * 0.9 * pud.killChargeAuraInterval;
+  }
+  if (def.mechanic === "cob_bombard") {
+    const lv = pud.level || 1;
+    pud.cornBombBaseInterval = Math.max(2.05, 6.5 - (lv - 1) * 0.82);
+    pud.cornBombCd = 0;
   }
   return pud;
 }

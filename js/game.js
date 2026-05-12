@@ -37,6 +37,8 @@ const SPAWN_X = CANVAS_W - 20;
 const BELT_CENTERS_X = [340, 600, 860];
 const BELT_HIT_HW = 34;
 const PUDDING_HIT_R = 28;
+/** 玉米加农炮：轰炸半径（像素） */
+const CORN_BOMB_RADIUS = 132;
 /** 绘制时圆弧中心相对槽位逻辑的竖直偏移（与 drawDefenderPudding 一致） */
 const PUDDING_SPRITE_CY_OFF = -1;
 const PUDDING_SPRITE_R = 20;
@@ -327,6 +329,51 @@ export class Game {
     return best;
   }
 
+  /** 轰炸落点：在战场竖带内、国王右侧，且不在任一竖轨宽带内 */
+  isValidCornBombPosition(mx, my) {
+    if (this.phase !== "combat") return false;
+    if (my < PLAY_TOP + 10 || my > PLAY_BOTTOM - 10) return false;
+    if (mx < KING_X2 + 52 || mx > CANVAS_W - 28) return false;
+    for (const belt of this.belts) {
+      if (Math.abs(mx - belt.x) < BELT_HIT_HW + 48) return false;
+    }
+    return true;
+  }
+
+  fireCornBombard(fromBi, fromSi, mx, my) {
+    const slot = this.belts[fromBi]?.slots[fromSi];
+    const pud = slot?.pudding;
+    if (!pud || pud.isDead || pud.mechanic !== "cob_bombard") return false;
+    if ((pud.cornBombCd || 0) > 0) return false;
+    if (!this.isValidCornBombPosition(mx, my)) return false;
+
+    const counts = aggregateTraitCounts(this.belts);
+    const syn = computeSynergyMultipliers(counts);
+    const lv = pud.level || 1;
+    const baseDmg =
+      (28 + lv * 15 + this.wave * 4.5) * this.global.dmg * syn.damageMul;
+    const R = CORN_BOMB_RADIUS;
+    const K = 460;
+
+    for (const e of this.enemies) {
+      const rr = e.hitRadius || 18;
+      if (dist(mx, my, e.x, e.y) >= R + rr) continue;
+      e.hp -= baseDmg;
+      e.hitFlash = 0.16;
+      const dx = e.x - mx;
+      const dy = e.y - my;
+      const d = Math.hypot(dx, dy) || 1;
+      e.knockbackVx += (dx / d) * K;
+      e.knockbackVy += (dy / d) * K * 0.52;
+    }
+
+    this.addFloatText(mx, my - 28, "轰炸!", "#ffe8a0");
+    sfxAoeBoom();
+    pud.cornBombCd = pud.cornBombBaseInterval ?? 5;
+    pud.hitFlash = 0.22;
+    return true;
+  }
+
   clearKeyboardBeltFollow() {
     const bi = this.keyboardBeltFollowBi;
     if (bi !== null && this.belts[bi]) {
@@ -465,10 +512,19 @@ export class Game {
     } else if (this.drag.kind === "pudding") {
       const from = { bi: this.drag.bi, si: this.drag.si };
       const to = this.pickSlotAt(mx, my);
-      if (to && (from.bi !== to.bi || from.si !== to.si)) {
-        const a = this.belts[from.bi].slots[from.si].pudding;
+      const a = this.belts[from.bi].slots[from.si].pudding;
+
+      if (
+        a &&
+        !a.isDead &&
+        a.mechanic === "cob_bombard" &&
+        (a.cornBombCd || 0) <= 0 &&
+        this.isValidCornBombPosition(mx, my)
+      ) {
+        this.fireCornBombard(from.bi, from.si, mx, my);
+      } else if (to && (from.bi !== to.bi || from.si !== to.si)) {
         const b = this.belts[to.bi].slots[to.si].pudding;
-        
+
         if (a && b && a.typeId === b.typeId && a.level === b.level && a.level < 4 && !a.isDead && !b.isDead) {
           this.belts[to.bi].slots[to.si].pudding = makePudding(a.typeId, a.level + 1);
           this.belts[from.bi].slots[from.si].pudding = null;
@@ -878,7 +934,15 @@ export class Game {
           }
         }
 
-        if (pud.mechanic === "defender" || (pud.mechanic && pud.mechanic.startsWith("buff_"))) {
+        if (pud.mechanic === "cob_bombard" && (pud.cornBombCd || 0) > 0) {
+          pud.cornBombCd -= dt;
+        }
+
+        if (
+          pud.mechanic === "defender" ||
+          (pud.mechanic && pud.mechanic.startsWith("buff_")) ||
+          pud.mechanic === "cob_bombard"
+        ) {
           continue;
         }
 
@@ -1444,6 +1508,20 @@ export class Game {
     ctx.globalAlpha = 0.93;
     // drawDefenderPudding 主圆心在 (x, y-1)，传入 y = my+1 使圆心在指针处
     this.drawDefenderPudding(ctx, mx, my + 1, pud);
+    if (pud.mechanic === "cob_bombard") {
+      const ok =
+        (pud.cornBombCd || 0) <= 0 && this.isValidCornBombPosition(mx, my);
+      ctx.save();
+      ctx.globalAlpha = ok ? 0.42 : 0.22;
+      ctx.strokeStyle = ok ? "rgba(255, 230, 140, 0.95)" : "rgba(255, 120, 90, 0.75)";
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([9, 10]);
+      ctx.beginPath();
+      ctx.arc(mx, my, CORN_BOMB_RADIUS, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
     ctx.restore();
   }
 
@@ -1544,6 +1622,35 @@ export class Game {
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText("★", x, y + 10);
+    }
+
+    if (pud.mechanic === "cob_bombard") {
+      ctx.fillStyle = "rgba(40, 28, 12, 0.9)";
+      ctx.fillRect(x - 14, y - 22, 28, 10);
+      ctx.strokeStyle = "#2a1a0a";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x - 14, y - 22, 28, 10);
+      ctx.fillStyle = "#f4d03f";
+      ctx.beginPath();
+      ctx.arc(x + 10, y - 17, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#1a1008";
+      ctx.stroke();
+      const intv = pud.cornBombBaseInterval || 1;
+      const cd = Math.max(0, pud.cornBombCd || 0);
+      if (cd > 0) {
+        const t = Math.min(1, cd / intv);
+        ctx.strokeStyle = "#2a2018";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(x, y + 12, 9, -Math.PI / 2, -Math.PI / 2 + (1 - t) * Math.PI * 2);
+        ctx.stroke();
+        ctx.strokeStyle = "rgba(255, 200, 80, 0.9)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(x, y + 12, 9, -Math.PI / 2, -Math.PI / 2 + (1 - t) * Math.PI * 2);
+        ctx.stroke();
+      }
     }
     
     if (pud.hp !== undefined && pud.hp < pud.maxHp) {
