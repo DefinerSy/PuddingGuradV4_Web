@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>国王布丁守卫战</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="hud">
+      <div class="hud-block">
+        <span class="label">波次</span>
+        <span id="hud-wave">1 / 20</span>
+      </div>
+      <div class="hud-block king-hp">
+        <span class="label">国王布丁</span>
+        <div class="bar-wrap"><div id="king-bar" class="bar-fill"></div></div>
+        <span id="hud-king-hp">100 / 100</span>
+      </div>
+      <div class="hud-block">
+        <span class="label">金币</span>
+        <span id="hud-gold">0</span>
+      </div>
+      <div class="hud-block hint" id="hud-hint">拖动传送带切换路线</div>
+    </header>
+
+    <main class="stage">
+      <canvas id="game" width="1200" height="640" aria-label="游戏画面"></canvas>
+
+      <div id="overlay-menu" class="overlay panel">
+        <h1>国王布丁守卫战</h1>
+        <p class="tagline">三条回转传送带 · 五路幽灵 · 20 波后决战 BOSS</p>
+        <button type="button" id="btn-start">开始游戏</button>
+        <p class="small">开局可在任意传送带上放置<strong>第一个</strong>布丁守卫。</p>
+      </div>
+
+      <div id="overlay-place" class="overlay panel hidden">
+        <h2>放置初始布丁</h2>
+        <p>点击一条传送带，将你的布丁摆上去。</p>
+        <button type="button" id="btn-place-cancel" class="ghost">稍后（仍须放置）</button>
+      </div>
+
+      <div id="overlay-shop" class="overlay panel hidden wide">
+        <h2>商店 <span id="shop-wave-label"></span></h2>
+        <p class="shop-meta">金币 <strong id="shop-gold">0</strong> · 刷新 <span id="shop-reroll-cost">5</span> 金</p>
+        <div id="shop-cards" class="shop-cards"></div>
+        <div class="shop-actions">
+          <button type="button" id="btn-reroll">刷新商品</button>
+          <button type="button" id="btn-next-wave">进入下一波</button>
+        </div>
+      </div>
+
+      <div id="overlay-end" class="overlay panel hidden">
+        <h2 id="end-title">游戏结束</h2>
+        <p id="end-desc"></p>
+        <button type="button" id="btn-restart">再来一局</button>
+      </div>
+    </main>
+  </div>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
