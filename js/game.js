@@ -777,8 +777,17 @@ export class Game {
 
       if (!p.trail) p.trail = [];
       p.trail.unshift({ x: p.x, y: p.y });
-      const maxTrail = 14;
+      const maxTrail = 18;
+      const minStep = 5;
+      while (
+        p.trail.length > 1 &&
+        dist(p.trail[0].x, p.trail[0].y, p.trail[1].x, p.trail[1].y) < minStep
+      ) {
+        p.trail.splice(1, 1);
+      }
       while (p.trail.length > maxTrail) p.trail.pop();
+
+      for (const belt of this.belts) {
         for (let si = 0; si < belt.slots.length; si++) {
           const pud = belt.slots[si].pudding;
           if (pud && !pud.isDead && pud.mechanic && pud.mechanic.startsWith("buff_")) {
@@ -869,26 +878,50 @@ export class Game {
     this.floatTexts.push({ x, y, text, color, life: 0.9 });
   }
 
-  /** 拖尾 + 弹芯，增强打击感 */
+  /** 拖尾 + 弹芯：速度方向长条渐变（必显）+ 轨迹采样增强 */
   drawProjectile(ctx, p) {
     const fire = p.effects.has("fire");
-    const trail = p.trail && p.trail.length >= 2 ? p.trail : null;
+    const spd = Math.hypot(p.vx, p.vy) || 260;
+    const nx = p.vx / spd;
+    const ny = p.vy / spd;
+    const ribbonLen = Math.min(130, 42 + spd * 0.28);
+    const bx = p.x - nx * ribbonLen;
+    const by = p.y - ny * ribbonLen;
+
     const coreFill = fire ? "#ff9228" : "#fff85c";
-    const tailMid = fire ? "rgba(255,130,55," : "rgba(255,235,130,";
-    const tailHot = fire ? "rgba(255,80,30," : "rgba(255,255,210,";
+    const tailMid = fire ? "rgba(255,150,70," : "rgba(255,245,150,";
+    const tailHot = fire ? "rgba(255,95,40," : "rgba(255,255,230,";
 
     ctx.save();
 
+    const rib = ctx.createLinearGradient(bx, by, p.x, p.y);
+    rib.addColorStop(0, tailMid + "0)");
+    rib.addColorStop(0.25, tailMid + "0.15)");
+    rib.addColorStop(0.55, tailMid + "0.55)");
+    rib.addColorStop(0.88, tailHot + "0.9)");
+    rib.addColorStop(1, fire ? "rgba(255,255,220,0.98)" : "rgba(255,255,255,0.98)");
+    ctx.strokeStyle = rib;
+    ctx.lineWidth = fire ? 11 : 10;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(bx, by);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+    ctx.strokeStyle = fire ? "rgba(40,18,8,0.55)" : "rgba(30,24,8,0.5)";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    const trail = p.trail && p.trail.length >= 2 ? p.trail : null;
     if (trail) {
       for (let i = trail.length - 1; i >= 0; i--) {
         const pt = trail[i];
         const t = trail.length > 1 ? i / (trail.length - 1) : 0;
-        const alpha = 0.06 + t * 0.38;
-        const rad = 1.5 + t * 5;
+        const alpha = 0.18 + t * 0.55;
+        const rad = 2 + t * 6;
         if (fire) {
-          ctx.fillStyle = `rgba(255,${85 + t * 120},${35 + t * 50},${alpha})`;
+          ctx.fillStyle = `rgba(255,${70 + t * 140},${30 + t * 60},${alpha})`;
         } else {
-          ctx.fillStyle = `rgba(255,${210 + t * 45},${70 + t * 110},${alpha})`;
+          ctx.fillStyle = `rgba(255,${200 + t * 55},${60 + t * 120},${alpha})`;
         }
         ctx.beginPath();
         ctx.arc(pt.x, pt.y, rad, 0, Math.PI * 2);
@@ -898,11 +931,11 @@ export class Game {
       const tail = trail[trail.length - 1];
       const grad = ctx.createLinearGradient(tail.x, tail.y, p.x, p.y);
       grad.addColorStop(0, tailMid + "0)");
-      grad.addColorStop(0.4, tailMid + "0.25)");
-      grad.addColorStop(0.82, tailMid + "0.5)");
-      grad.addColorStop(1, tailHot + "0.65)");
+      grad.addColorStop(0.35, tailMid + "0.35)");
+      grad.addColorStop(0.75, tailMid + "0.75)");
+      grad.addColorStop(1, tailHot + "0.95)");
       ctx.strokeStyle = grad;
-      ctx.lineWidth = 6;
+      ctx.lineWidth = 7;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       ctx.beginPath();
@@ -912,28 +945,12 @@ export class Game {
       }
       ctx.lineTo(p.x, p.y);
       ctx.stroke();
-      ctx.lineWidth = 2.5;
-      ctx.strokeStyle = fire ? "rgba(255,220,160,0.45)" : "rgba(255,255,230,0.5)";
-      ctx.stroke();
-    } else {
-      const spd = Math.hypot(p.vx, p.vy) || 260;
-      const nx = -p.vx / spd;
-      const ny = -p.vy / spd;
-      for (let k = 12; k >= 1; k--) {
-        const t = k / 12;
-        ctx.globalAlpha = 0.06 + t * 0.38;
-        ctx.fillStyle = fire ? "#ff7820" : "#ffe566";
-        ctx.beginPath();
-        ctx.arc(p.x + nx * 6.5 * k, p.y + ny * 6.5 * k, 1.2 + t * 4.2, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.globalAlpha = 1;
     }
 
     ctx.shadowColor = fire
       ? "rgba(255, 140, 50, 0.95)"
       : "rgba(255, 250, 150, 0.9)";
-    ctx.shadowBlur = fire ? 14 : 12;
+    ctx.shadowBlur = fire ? 16 : 14;
     ctx.fillStyle = coreFill;
     ctx.beginPath();
     ctx.arc(p.x, p.y, 6.5, 0, Math.PI * 2);
