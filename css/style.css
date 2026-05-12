@@ -109,6 +109,15 @@ body::before {
   min-width: 220px;
 }
 
+.king-skill-hud {
+  min-width: 160px;
+}
+
+.bar-fill.king-skill {
+  background: linear-gradient(180deg, #ffe8a0 0%, #e8a040 42%, #8a4a18 100%);
+  box-shadow: 0 0 12px rgba(255, 200, 100, 0.5);
+}
+
 .bar-wrap {
   height: 10px;
   background: #0d060c;

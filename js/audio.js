@@ -14,6 +14,7 @@ let bgmIntervalId = null;
 let bgmMode = "off";
 let lastKingSfx = -1e9;
 let lastShootSfx = -1e9;
+let lastKingRoyalSfx = -1e9;
 let lastProjHitSfx = -1e9;
 let lastUiSfx = -1e9;
 let lastShootSplitSfx = -1e9;
@@ -459,6 +460,23 @@ export function sfxReroll() {
 export function sfxAoeBoom() {
   noiseBurst(0.12, 0.09, 600);
   beep({ freq: 90, duration: 0.18, peak: 0.1, type: "sawtooth", freqEnd: 40 });
+}
+
+/** 国王主动技「王权齐射」五路齐发 */
+export function sfxKingRoyalVolley() {
+  if (muted || !ctx) return;
+  ensureRunning();
+  const t = performance.now();
+  if (t - lastKingRoyalSfx < 220) return;
+  lastKingRoyalSfx = t;
+  noiseBurst(0.1, 0.1, 1400);
+  beep({ freq: 180, duration: 0.1, peak: 0.11, type: "triangle", freqEnd: 320 });
+  window.setTimeout(() => {
+    if (muted || !ctx) return;
+    ensureRunning();
+    beep({ freq: 523, duration: 0.08, peak: 0.1, type: "sine", freqEnd: 988 });
+    beep({ freq: 784, duration: 0.06, peak: 0.07, type: "triangle", freqEnd: 1318 });
+  }, 35);
 }
 
 /** 取消静音后按当前阶段恢复 BGM（不播放阶段切换音效）。 */

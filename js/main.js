@@ -43,6 +43,8 @@ const hudWave = el("hud-wave");
 const hudGold = el("hud-gold");
 const hudKingHp = el("hud-king-hp");
 const kingBar = el("king-bar");
+const kingSkillBar = el("king-skill-bar");
+const hudKingSkill = el("hud-king-skill");
 const hudHint = el("hud-hint");
 const shopWaveLabel = el("shop-wave-label");
 const shopGold = el("shop-gold");
@@ -164,12 +166,23 @@ function syncHud() {
   const ratio = h.kingMaxHp > 0 ? Math.max(0, h.kingHp / h.kingMaxHp) : 0;
   kingBar.style.transform = `scaleX(${ratio})`;
 
+  if (kingSkillBar && hudKingSkill && h.kingSkillKillsRequired != null) {
+    const req = h.kingSkillKillsRequired;
+    const ch = Math.min(h.kingSkillKillCharge ?? 0, req);
+    const skillRatio = req > 0 ? ch / req : 0;
+    kingSkillBar.style.transform = `scaleX(${skillRatio})`;
+    const ready = ch >= req;
+    hudKingSkill.textContent = ready
+      ? `${ch} / ${req} · 空格释放`
+      : `${ch} / ${req}`;
+  }
+
   if (h.phase === "placeStarter") {
     hudHint.textContent =
       "点击任意「空槽」圆位放置第一只布丁；每条环轨有多个固定槽，之后可拖布丁换位。";
   } else if (h.phase === "combat") {
     const base =
-      "空白处上下拖环轨：整根带子一起卷动，槽位随之循环。\n拖住布丁拖到另一槽位可换位（含跨轨）。布丁高度决定打哪一路。\n键 1/2/3：指定三条环轨之一，中轨槽紧贴指针竖直位置（勿按左键）；左键点一下取消。\n青雾幽灵会横向换路；粉雾幽灵在中距停步并发射粉弹攻击布丁或国王。";
+      "空白处上下拖环轨：整根带子一起卷动，槽位随之循环。\n拖住布丁拖到另一槽位可换位（含跨轨）。布丁高度决定打哪一路。\n键 1/2/3：指定三条环轨之一，中轨槽紧贴指针竖直位置（勿按左键）；左键点一下取消。\n青雾幽灵会横向换路；粉雾幽灵在中距停步并发射粉弹攻击布丁或国王。\n击杀敌人可为「王权齐射」蓄力，满后按空格：五路各一发穿透高伤。";
     hudHint.textContent = h.synergyLine ? `${base}\n${h.synergyLine}` : base;
   } else if (h.phase === "shop") {
     hudHint.textContent = "在商店购买新布丁或强化，然后进入下一波。";
@@ -288,13 +301,22 @@ document.addEventListener(
   true
 );
 
-/** 战斗中 1/2/3 切换要跟指针的竖轨（与拖布丁互斥） */
+/** 战斗中 1/2/3 切换要跟指针的竖轨；空格释放国王主动技 */
 document.addEventListener("keydown", (ev) => {
   if (ev.repeat) return;
   if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+  const ph = game.getHud().phase;
+
+  if (ev.key === " " || ev.code === "Space") {
+    if (ph === "combat") {
+      ev.preventDefault();
+      game.tryFireKingRoyalVolley();
+    }
+    return;
+  }
+
   const key = ev.key;
   if (key !== "1" && key !== "2" && key !== "3") return;
-  const ph = game.getHud().phase;
   if (ph !== "combat" && ph !== "placeStarter") return;
   const idx = Number(key) - 1;
   if (idx >= game.belts.length) return;
