@@ -169,21 +169,16 @@ export class Game {
     this.applyBeltLayout();
   }
 
-  start() {
-    this.reset();
-    this.phase = "mapSelect";
-    this.gold = 10;
-  }
-
   /**
-   * 在选关界面点选后进入放置阶段；会按 `mapStyle` 重算各轨端点。
+   * 从主菜单直接带地图开局：进入放置首布丁阶段（选关做在主菜单按钮上，避免单独遮罩层与旧 JS 缓存问题）。
    * @param {"classic"|"diagonal"} mapStyle
    */
-  selectMap(mapStyle) {
-    if (this.phase !== "mapSelect") return;
+  startWithMap(mapStyle) {
+    this.reset();
     this.mapStyle = mapStyle === "diagonal" ? "diagonal" : "classic";
     this.applyBeltLayout();
     this.phase = "placeStarter";
+    this.gold = 10;
   }
 
   applyBeltLayout() {

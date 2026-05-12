@@ -10,7 +10,7 @@
     href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@500;700;900&family=Silkscreen:wght@400;700&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/style.css?v=20260212-menu2" />
 </head>
 <body>
   <noscript>本游戏需要启用 JavaScript，且需通过本地 HTTP 访问（不要直接双击用 file:// 打开，否则模块无法加载）。</noscript>
@@ -71,38 +71,21 @@
       <div id="overlay-menu" class="overlay panel">
         <h1>国王布丁守卫战</h1>
         <p class="tagline">双地图选关 · 环轨多槽 · 词条叠层 · 五路幽灵 · 第 20 波 BOSS</p>
-        <button
-          type="button"
-          id="btn-start"
-          onclick="(function(){try{if(typeof PuddingGuardUnlockAudio==='function')PuddingGuardUnlockAudio();if(typeof PuddingGuardStart==='function')PuddingGuardStart();}catch(e){console.error(e);}})();"
-        >
-          开始游戏
-        </button>
-        <p class="small">开局一只原味布丁；同名词条份数越多协同越强（类似《土豆兄弟》叠层）。</p>
-      </div>
-
-      <!-- 与主菜单同级并叠在画布之上，避免被主菜单层或画布合成层挡住 -->
-      <div id="overlay-map-select" class="overlay panel hidden">
-        <h2>选择战场</h2>
-        <p class="tagline map-select-lead">
-          两张地图波次与敌人相同，仅<strong>环轨排布</strong>不同：经典为三根竖轨；斜廊为场地内倾斜的三条环轨。
-        </p>
-        <div class="map-pick-grid">
-          <button type="button" id="btn-map-classic" class="map-card">
-            <span class="map-card-title">经典竖轨</span>
-            <span class="map-card-desc">与早期版本一致的三根纵向环轨。</span>
+        <div class="menu-map-row">
+          <button type="button" id="btn-start-classic">
+            经典竖轨 · 开局
           </button>
-          <button type="button" id="btn-map-diagonal" class="map-card">
-            <span class="map-card-title">斜廊战场</span>
-            <span class="map-card-desc">三条斜向贯穿场地的环轨；拖轨滚动沿斜线贴合，数字键操控亦按指针在轨上的投影对齐。</span>
+          <button type="button" id="btn-start-diagonal">
+            斜廊战场 · 开局
           </button>
         </div>
+        <p class="small">开局一只原味布丁；同名词条份数越多协同越强（类似《土豆兄弟》叠层）。</p>
       </div>
     </div>
 
   </div>
 
   <div id="tooltip" class="tooltip hidden"></div>
-  <script type="module" src="js/main.js?v=20260212-mapfix"></script>
+  <script type="module" src="js/main.js?v=20260212-menu2"></script>
 </body>
 </html>

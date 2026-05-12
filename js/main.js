@@ -1,4 +1,4 @@
-import { Game } from "./game.js";
+import { Game } from "./game.js?v=20260212-menu2";
 import {
   isMuted,
   onGamePhaseChanged,
@@ -11,10 +11,10 @@ import {
   sfxUiDeny,
   syncBgmToPhase,
   unlockAudioFromGesture,
-} from "./audio.js";
+} from "./audio.js?v=20260212-menu2";
 
 if (typeof window.PuddingGuardStart !== "function") {
-  window.PuddingGuardStart = () => {
+  window.PuddingGuardStart = (..._args) => {
     console.warn("国王布丁：脚本尚在加载，请稍候片刻再点开始。");
   };
 }
@@ -35,7 +35,6 @@ window.addEventListener(
 const el = (id) => document.getElementById(id);
 
 const overlayMenu = el("overlay-menu");
-const overlayMapSelect = el("overlay-map-select");
 const overlayPlace = el("overlay-place");
 const overlayShop = el("overlay-shop");
 const overlayEnd = el("overlay-end");
@@ -132,7 +131,6 @@ function releaseCanvasPointerCaptureTracked() {
 function syncOverlays() {
   const h = game.getHud();
   setVisible(overlayMenu, h.phase === "menu");
-  setVisible(overlayMapSelect, h.phase === "mapSelect");
   setVisible(overlayPlace, h.phase === "placeStarter");
   setVisible(overlayShop, h.phase === "shop");
   setVisible(overlayEnd, h.phase === "ended");
@@ -208,10 +206,8 @@ function syncHud() {
     hudHint.textContent = h.synergyLine ? `${base}\n${h.synergyLine}` : base;
   } else if (h.phase === "shop") {
     hudHint.textContent = "在商店购买新布丁或强化，然后进入下一波。";
-  } else if (h.phase === "mapSelect") {
-    hudHint.textContent = "请选择一张战场地图，然后放置开局布丁。";
   } else if (h.phase === "menu") {
-    hudHint.textContent = "点击「开始游戏」。";
+    hudHint.textContent = "请点击「经典竖轨」或「斜廊战场」开始。";
   } else {
     hudHint.textContent = "";
   }
@@ -225,16 +221,17 @@ function openShopPhase() {
 }
 
 let lastMenuStartAt = 0;
-async function tryStartGameFromMenu() {
+async function tryStartWithMap(mapStyle) {
   try {
     if (game.getHud().phase !== "menu") return;
     const now = performance.now();
     if (now - lastMenuStartAt < 350) return;
     lastMenuStartAt = now;
     const oldPhase = game.getHud().phase;
+    const style = mapStyle === "diagonal" ? "diagonal" : "classic";
     unlockAudioFromGesture();
     await resumeAudio();
-    game.start();
+    game.startWithMap(style);
     onGamePhaseChanged(game.phase, oldPhase, {});
     syncOverlays();
     syncHud();
@@ -243,42 +240,16 @@ async function tryStartGameFromMenu() {
   }
 }
 
-function commitMapSelection(mapStyle) {
-  if (game.phase !== "mapSelect") return;
-  const oldPhase = game.phase;
-  game.selectMap(mapStyle);
-  onGamePhaseChanged(game.phase, oldPhase, {});
-  syncOverlays();
-  syncHud();
-}
-
-el("btn-map-classic")?.addEventListener("click", () => {
-  commitMapSelection("classic");
-});
-
-el("btn-map-diagonal")?.addEventListener("click", () => {
-  commitMapSelection("diagonal");
-});
-
-/** 菜单层委托 */
+/** 菜单层：主界面两个开局按钮 */
 overlayMenu?.addEventListener("click", (e) => {
   const hit = e.target;
-  if (!(hit instanceof Element) || !hit.closest("#btn-start")) return;
-  tryStartGameFromMenu();
+  if (!(hit instanceof Element)) return;
+  if (hit.closest("#btn-start-classic")) {
+    void tryStartWithMap("classic");
+  } else if (hit.closest("#btn-start-diagonal")) {
+    void tryStartWithMap("diagonal");
+  }
 });
-
-/** 捕获阶段兜底：部分嵌套浏览器/预览里冒泡或目标阶段异常时仍能收到 */
-document.addEventListener(
-  "click",
-  (e) => {
-    const hit = e.target;
-    if (!(hit instanceof Element)) return;
-    if (!hit.closest("#btn-start")) return;
-    if (game.getHud().phase !== "menu") return;
-    tryStartGameFromMenu();
-  },
-  true
-);
 
 el("btn-place-cancel").addEventListener("click", () => {
   setVisible(overlayPlace, false);
@@ -567,7 +538,12 @@ document.body.addEventListener(
   { passive: true, once: true }
 );
 
-/** F12 里可手动试：typeof PuddingGuardStart === "function" && PuddingGuardStart() */
-window.PuddingGuardStart = tryStartGameFromMenu;
+/**
+ * F12：`PuddingGuardStart('classic')` / `PuddingGuardStart('diagonal')`
+ * 主菜单按钮由 tryStartWithMap 处理；此处供内联脚本或调试兜底。
+ */
+window.PuddingGuardStart = (mapStyle) => {
+  void tryStartWithMap(String(mapStyle || "classic"));
+};
 
 requestAnimationFrame(frame);

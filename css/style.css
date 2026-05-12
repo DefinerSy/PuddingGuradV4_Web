@@ -166,13 +166,6 @@ body::before {
   -webkit-backdrop-filter: none;
 }
 
-#btn-start {
-  position: relative;
-  z-index: 2;
-  pointer-events: auto;
-  cursor: pointer;
-}
-
 .overlay {
   position: absolute;
   inset: 0;
@@ -197,64 +190,29 @@ body::before {
   pointer-events: auto;
 }
 
-.stage-host > #overlay-map-select.overlay {
-  z-index: 1250;
-  pointer-events: auto;
-}
-
-.map-select-lead {
-  max-width: 560px;
-  margin: 0 auto 22px;
-}
-
-.map-pick-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  max-width: 700px;
-  width: 100%;
-  margin: 0 auto;
-}
-
-button.map-card {
+.menu-map-row {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  text-align: left;
-  min-height: 132px;
-  padding: 16px 18px;
-  background: linear-gradient(180deg, #3a3050 0%, var(--panel) 55%, #22182c 100%);
-  color: var(--text);
-  border-color: var(--panel-edge);
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.55);
-  box-shadow: 0 5px 0 #120a18, 0 8px 16px var(--shadow-ink);
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: center;
+  align-items: stretch;
+  margin: 6px 0 8px;
+  width: 100%;
+  max-width: 640px;
 }
 
-button.map-card:hover {
-  border-color: var(--mint);
-  filter: brightness(1.05);
+.menu-map-row button {
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
+  cursor: pointer;
+  flex: 1 1 220px;
+  min-width: 168px;
 }
 
-.map-card-title {
-  display: block;
-  font-size: 17px;
-  font-weight: 900;
-  color: var(--accent-hot);
-  margin-bottom: 10px;
-  text-shadow: 0 2px 0 #2a1808;
-}
-
-.map-card-desc {
-  display: block;
-  font-size: 13px;
-  font-weight: 600;
-  color: #c8bdd4;
-  line-height: 1.5;
-}
-
-@media (max-width: 720px) {
-  .map-pick-grid {
-    grid-template-columns: 1fr;
+@media (max-width: 520px) {
+  .menu-map-row {
+    flex-direction: column;
   }
 }
 
