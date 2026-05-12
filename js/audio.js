@@ -62,19 +62,43 @@ function ensureContext() {
   masterGain = ctx.createGain();
   masterGain.gain.value = muted ? 0 : 1;
   sfxGain = ctx.createGain();
-  sfxGain.gain.value = 0.5;
+  sfxGain.gain.value = 0.72;
   bgmGain = ctx.createGain();
-  bgmGain.gain.value = 0.2;
+  bgmGain.gain.value = 0.32;
   sfxGain.connect(masterGain);
   bgmGain.connect(masterGain);
   masterGain.connect(ctx.destination);
   return ctx;
 }
 
-export async function resumeAudio() {
+/**
+ * 必须在用户手势的同步调用栈内执行（不要 await 之后再调），
+ * 否则 Chrome / Safari 可能一直保持 suspended，导致全程无声。
+ */
+export function unlockAudioFromGesture() {
   const c = ensureContext();
   if (!c) return;
-  if (c.state === "suspended") await c.resume();
+  try {
+    if (c.state !== "running") void c.resume();
+  } catch (e) {
+    console.warn("[audio] resume failed", e);
+  }
+  applyMuteGain();
+}
+
+export async function resumeAudio() {
+  unlockAudioFromGesture();
+  const c = ctx;
+  if (!c) return;
+  if (c.state === "running") return;
+  for (let i = 0; i < 24 && c.state !== "running"; i++) {
+    await new Promise((r) => setTimeout(r, 25));
+    try {
+      if (c.state !== "running") void c.resume();
+    } catch {
+      /* ignore */
+    }
+  }
   applyMuteGain();
 }
 
@@ -90,61 +114,73 @@ function beep({
   freqEnd,
 }) {
   if (muted || !ctx) return;
-  const t0 = nowT();
-  const osc = ctx.createOscillator();
-  const g = ctx.createGain();
-  osc.type = type;
-  osc.frequency.setValueAtTime(freq, t0);
-  if (freqEnd != null) {
-    const fe = Math.max(30, freqEnd);
-    osc.frequency.exponentialRampToValueAtTime(fe, t0 + duration);
+  try {
+    const t0 = nowT();
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t0);
+    if (freqEnd != null) {
+      const fe = Math.max(30, freqEnd);
+      osc.frequency.exponentialRampToValueAtTime(fe, t0 + duration);
+    }
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(peak, t0 + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+    osc.connect(g);
+    g.connect(sfxGain);
+    osc.start(t0);
+    osc.stop(t0 + duration + 0.03);
+  } catch (e) {
+    console.warn("[audio] beep", e);
   }
-  g.gain.setValueAtTime(0.0001, t0);
-  g.gain.exponentialRampToValueAtTime(peak, t0 + 0.006);
-  g.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
-  osc.connect(g);
-  g.connect(sfxGain);
-  osc.start(t0);
-  osc.stop(t0 + duration + 0.03);
 }
 
 function noiseBurst(duration = 0.04, peak = 0.055, freq = 2200) {
   if (muted || !ctx) return;
-  const n = Math.floor(ctx.sampleRate * duration);
-  const buf = ctx.createBuffer(1, n, ctx.sampleRate);
-  const d = buf.getChannelData(0);
-  for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
-  const src = ctx.createBufferSource();
-  src.buffer = buf;
-  const filt = ctx.createBiquadFilter();
-  filt.type = "lowpass";
-  filt.frequency.value = freq;
-  const g = ctx.createGain();
-  const t0 = nowT();
-  g.gain.setValueAtTime(0.0001, t0);
-  g.gain.linearRampToValueAtTime(peak, t0 + 0.008);
-  g.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
-  src.connect(filt);
-  filt.connect(g);
-  g.connect(sfxGain);
-  src.start(t0);
-  src.stop(t0 + duration + 0.03);
+  try {
+    const n = Math.floor(ctx.sampleRate * duration);
+    const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const filt = ctx.createBiquadFilter();
+    filt.type = "lowpass";
+    filt.frequency.value = freq;
+    const g = ctx.createGain();
+    const t0 = nowT();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(peak, t0 + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+    src.connect(filt);
+    filt.connect(g);
+    g.connect(sfxGain);
+    src.start(t0);
+    src.stop(t0 + duration + 0.03);
+  } catch (e) {
+    console.warn("[audio] noiseBurst", e);
+  }
 }
 
 function playChord(t0, freqs, duration, vol) {
   if (muted || !ctx) return;
   for (const f of freqs) {
-    const osc = ctx.createOscillator();
-    osc.type = "sine";
-    const g = ctx.createGain();
-    osc.frequency.value = f;
-    g.gain.setValueAtTime(0.0001, t0);
-    g.gain.linearRampToValueAtTime(vol, t0 + 0.12);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
-    osc.connect(g);
-    g.connect(bgmGain);
-    osc.start(t0);
-    osc.stop(t0 + duration + 0.06);
+    try {
+      const osc = ctx.createOscillator();
+      osc.type = "sine";
+      const g = ctx.createGain();
+      osc.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.linearRampToValueAtTime(vol, t0 + 0.12);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+      osc.connect(g);
+      g.connect(bgmGain);
+      osc.start(t0);
+      osc.stop(t0 + duration + 0.06);
+    } catch (e) {
+      console.warn("[audio] playChord", e);
+    }
   }
 }
 
@@ -159,17 +195,21 @@ function scheduleBgmPulse() {
   const vol = bgmMode === "shop" ? 0.075 : 0.09;
   playChord(t0, freqs, period * 0.82, vol);
 
-  const sub = ctx.createOscillator();
-  sub.type = "sine";
-  const g2 = ctx.createGain();
-  sub.frequency.value = freqs[0] * 0.5;
-  g2.gain.setValueAtTime(0.0001, t0);
-  g2.gain.linearRampToValueAtTime(0.055, t0 + 0.06);
-  g2.gain.exponentialRampToValueAtTime(0.0001, t0 + period * 0.48);
-  sub.connect(g2);
-  g2.connect(bgmGain);
-  sub.start(t0);
-  sub.stop(t0 + period * 0.5 + 0.05);
+  try {
+    const sub = ctx.createOscillator();
+    sub.type = "sine";
+    const g2 = ctx.createGain();
+    sub.frequency.value = freqs[0] * 0.5;
+    g2.gain.setValueAtTime(0.0001, t0);
+    g2.gain.linearRampToValueAtTime(0.055, t0 + 0.06);
+    g2.gain.exponentialRampToValueAtTime(0.0001, t0 + period * 0.48);
+    sub.connect(g2);
+    g2.connect(bgmGain);
+    sub.start(t0);
+    sub.stop(t0 + period * 0.5 + 0.05);
+  } catch (e) {
+    console.warn("[audio] bgm sub", e);
+  }
 }
 
 function stopBgmLoop() {
@@ -274,7 +314,7 @@ export function sfxHitEnemy(seed = 0) {
   if (t - lastProjHitSfx < 28) return;
   lastProjHitSfx = t;
   const base = 200 + (seed % 5) * 28;
-  beep({ freq: base + 50, duration: 0.045, peak: 0.07, type: "square", freqEnd: base });
+  beep({ freq: base + 50, duration: 0.045, peak: 0.08, type: "sine", freqEnd: base });
 }
 
 export function sfxEnemyDeath() {

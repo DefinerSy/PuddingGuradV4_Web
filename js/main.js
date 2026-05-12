@@ -7,6 +7,7 @@ import {
   sfxBuy,
   sfxReroll,
   syncBgmToPhase,
+  unlockAudioFromGesture,
 } from "./audio.js";
 
 if (typeof window.PuddingGuardStart !== "function") {
@@ -17,6 +18,8 @@ if (typeof window.PuddingGuardStart !== "function") {
 
 const canvas = document.getElementById("game");
 const game = new Game(canvas);
+
+window.PuddingGuardUnlockAudio = unlockAudioFromGesture;
 
 const el = (id) => document.getElementById(id);
 
@@ -162,6 +165,7 @@ async function tryStartGameFromMenu() {
     if (now - lastMenuStartAt < 350) return;
     lastMenuStartAt = now;
     const oldPhase = game.getHud().phase;
+    unlockAudioFromGesture();
     await resumeAudio();
     game.start();
     onGamePhaseChanged(game.phase, oldPhase, {});
@@ -442,12 +446,28 @@ updateAudioMuteLabel();
 
 btnAudioMute?.addEventListener("click", (e) => {
   e.preventDefault();
+  unlockAudioFromGesture();
   void resumeAudio().then(() => {
     setMuted(!isMuted());
     updateAudioMuteLabel();
     if (!isMuted()) syncBgmToPhase(game.getHud().phase);
   });
 });
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) return;
+  unlockAudioFromGesture();
+  if (!isMuted()) syncBgmToPhase(game.getHud().phase);
+});
+
+document.body.addEventListener(
+  "touchstart",
+  () => {
+    unlockAudioFromGesture();
+    if (!isMuted()) syncBgmToPhase(game.getHud().phase);
+  },
+  { passive: true, once: true }
+);
 
 /** F12 里可手动试：typeof PuddingGuardStart === "function" && PuddingGuardStart() */
 window.PuddingGuardStart = tryStartGameFromMenu;
