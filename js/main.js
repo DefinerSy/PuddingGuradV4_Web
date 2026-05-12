@@ -2,6 +2,7 @@ import { Game } from "./game.js";
 import {
   isMuted,
   onGamePhaseChanged,
+  pumpAudioContext,
   resumeAudio,
   setMuted,
   sfxBuy,
@@ -50,9 +51,9 @@ const endTitle = el("end-title");
 const endDesc = el("end-desc");
 const tooltip = el("tooltip");
 const btnAudioMute = el("btn-audio-mute");
-const appRoot = el("app");
+const appRoot = el("app") ?? document.body;
 
-appRoot?.addEventListener(
+appRoot.addEventListener(
   "pointerdown",
   (e) => {
     if (e.button !== 0) return;
@@ -418,6 +419,7 @@ function frame(ts) {
   }
 
   game.update(dt);
+  pumpAudioContext();
   game.draw();
 
   if (!pointerOnCanvasSurface) {

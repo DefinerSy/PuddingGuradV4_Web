@@ -12,11 +12,11 @@ let bgmGain = null;
 let muted = false;
 let bgmIntervalId = null;
 let bgmMode = "off";
-let lastKingSfx = 0;
-let lastShootSfx = 0;
-let lastProjHitSfx = 0;
-let lastUiSfx = 0;
-let lastShootSplitSfx = 0;
+let lastKingSfx = -1e9;
+let lastShootSfx = -1e9;
+let lastProjHitSfx = -1e9;
+let lastUiSfx = -1e9;
+let lastShootSplitSfx = -1e9;
 let endedSfxPlayed = false;
 
 function loadPrefs() {
@@ -146,6 +146,23 @@ function nowT() {
   return ctx ? ctx.currentTime : 0;
 }
 
+/** 战斗循环里触发的音效不保证落在用户手势内，需尽量把上下文拉回 running。 */
+function ensureRunning() {
+  if (!ctx || ctx.state === "closed") return;
+  if (ctx.state !== "running") {
+    try {
+      void ctx.resume();
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+/** 每帧调用：部分浏览器会在后台或空闲时挂起 AudioContext，导致除偶发 beep 外几乎无声 */
+export function pumpAudioContext() {
+  ensureRunning();
+}
+
 function beep({
   freq = 440,
   duration = 0.06,
@@ -154,6 +171,7 @@ function beep({
   freqEnd,
 }) {
   if (muted || !ctx) return;
+  ensureRunning();
   try {
     const t0 = nowT();
     const osc = ctx.createOscillator();
@@ -178,6 +196,7 @@ function beep({
 
 function noiseBurst(duration = 0.04, peak = 0.055, freq = 2200) {
   if (muted || !ctx) return;
+  ensureRunning();
   try {
     const n = Math.floor(ctx.sampleRate * duration);
     const buf = ctx.createBuffer(1, n, ctx.sampleRate);
@@ -205,6 +224,7 @@ function noiseBurst(duration = 0.04, peak = 0.055, freq = 2200) {
 
 function playChord(t0, freqs, duration, vol) {
   if (muted || !ctx) return;
+  ensureRunning();
   for (const f of freqs) {
     try {
       const osc = ctx.createOscillator();
@@ -226,6 +246,7 @@ function playChord(t0, freqs, duration, vol) {
 
 function scheduleBgmPulse() {
   if (!ctx || muted || bgmMode === "off") return;
+  ensureRunning();
   const t0 = ctx.currentTime + 0.02;
   const period = bgmMode === "shop" ? 2.5 : 1.65;
   const freqs =
@@ -348,56 +369,63 @@ export function sfxMerge() {
 
 export function sfxShoot() {
   if (muted || !ctx) return;
+  ensureRunning();
   const t = performance.now();
-  if (t - lastShootSfx < 52) return;
+  if (t - lastShootSfx < 40) return;
   lastShootSfx = t;
-  noiseBurst(0.038, 0.075, 4800);
-  beep({ freq: 420, duration: 0.045, peak: 0.1, type: "triangle", freqEnd: 1180 });
+  beep({ freq: 520, duration: 0.038, peak: 0.11, type: "triangle", freqEnd: 1320 });
+  noiseBurst(0.032, 0.07, 5200);
   window.setTimeout(() => {
     if (muted || !ctx) return;
-    beep({ freq: 2100, duration: 0.028, peak: 0.055, type: "sine", freqEnd: 2600 });
-  }, 14);
+    ensureRunning();
+    beep({ freq: 2000, duration: 0.026, peak: 0.06, type: "sine", freqEnd: 2550 });
+  }, 12);
 }
 
 /** 分裂子弹等次要发射，音量略低。 */
 export function sfxShootSplit() {
   if (muted || !ctx) return;
+  ensureRunning();
   const t = performance.now();
-  if (t - lastShootSplitSfx < 40) return;
+  if (t - lastShootSplitSfx < 32) return;
   lastShootSplitSfx = t;
-  noiseBurst(0.022, 0.04, 5200);
-  beep({ freq: 900, duration: 0.03, peak: 0.055, type: "triangle", freqEnd: 1600 });
+  beep({ freq: 1100, duration: 0.028, peak: 0.07, type: "triangle", freqEnd: 1750 });
+  noiseBurst(0.018, 0.045, 5600);
 }
 
 export function sfxHitEnemy(seed = 0) {
   if (muted || !ctx) return;
+  ensureRunning();
   const t = performance.now();
-  if (t - lastProjHitSfx < 22) return;
+  if (t - lastProjHitSfx < 18) return;
   lastProjHitSfx = t;
   const base = 260 + (Math.abs(seed) % 8) * 24;
-  noiseBurst(0.048, 0.09, 2400);
-  beep({ freq: base + 140, duration: 0.06, peak: 0.13, type: "triangle", freqEnd: base });
+  beep({ freq: base + 160, duration: 0.055, peak: 0.14, type: "triangle", freqEnd: base });
+  noiseBurst(0.04, 0.08, 2600);
   window.setTimeout(() => {
     if (muted || !ctx) return;
-    beep({ freq: base * 2.4, duration: 0.035, peak: 0.06, type: "sine" });
-  }, 10);
+    ensureRunning();
+    beep({ freq: base * 2.5, duration: 0.032, peak: 0.07, type: "sine" });
+  }, 8);
 }
 
 export function sfxUiClick() {
   if (muted || !ctx) return;
+  ensureRunning();
   const t = performance.now();
-  if (t - lastUiSfx < 28) return;
+  if (t - lastUiSfx < 20) return;
   lastUiSfx = t;
-  noiseBurst(0.01, 0.04, 6200);
-  beep({ freq: 920, duration: 0.032, peak: 0.065, type: "sine", freqEnd: 1320 });
+  beep({ freq: 1080, duration: 0.028, peak: 0.08, type: "sine", freqEnd: 1420 });
+  beep({ freq: 1560, duration: 0.02, peak: 0.045, type: "sine" });
 }
 
 export function sfxUiDeny() {
   if (muted || !ctx) return;
+  ensureRunning();
   const t = performance.now();
-  if (t - lastUiSfx < 28) return;
+  if (t - lastUiSfx < 20) return;
   lastUiSfx = t;
-  beep({ freq: 200, duration: 0.07, peak: 0.06, type: "triangle", freqEnd: 110 });
+  beep({ freq: 220, duration: 0.075, peak: 0.07, type: "triangle", freqEnd: 95 });
 }
 
 export function sfxEnemyDeath() {
@@ -407,6 +435,7 @@ export function sfxEnemyDeath() {
 
 export function sfxKingHurt() {
   if (muted || !ctx) return;
+  ensureRunning();
   const t = performance.now();
   if (t - lastKingSfx < 110) return;
   lastKingSfx = t;
