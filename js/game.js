@@ -72,6 +72,37 @@ function dist(ax, ay, bx, by) {
   return Math.hypot(dx, dy);
 }
 
+/** 点到线段的最短距离（像素） */
+function pointSegDistance(px, py, ax, ay, bx, by) {
+  const abx = bx - ax;
+  const aby = by - ay;
+  const apx = px - ax;
+  const apy = py - ay;
+  const ab2 = abx * abx + aby * aby || 1;
+  let t = (apx * abx + apy * aby) / ab2;
+  t = clamp(t, 0, 1);
+  const cx = ax + abx * t;
+  const cy = ay + aby * t;
+  return dist(px, py, cx, cy);
+}
+
+function beltSegLen(belt) {
+  return dist(belt.p0.x, belt.p0.y, belt.p1.x, belt.p1.y) || 1;
+}
+
+function beltUnitAlong(belt) {
+  const L = beltSegLen(belt);
+  return {
+    ux: (belt.p1.x - belt.p0.x) / L,
+    uy: (belt.p1.y - belt.p0.y) / L,
+  };
+}
+
+/** 敌人从右侧逼近时，用于判定贴近环轨的「靠左」端 x */
+function beltLeftHookX(belt) {
+  return Math.min(belt.p0.x, belt.p1.x);
+}
+
 function yToLane(y) {
   const h = PLAY_H / LANES;
   return clamp(Math.floor((y - PLAY_TOP) / h), 0, LANES - 1);
@@ -112,6 +143,8 @@ export class Game {
     this.enemyShots = [];
     /** null | 0..BELT_COUNT-1 ，数字键 1–3 选中后与鼠标纵向同步滚动，不占拖曳态 */
     this.keyboardBeltFollowBi = null;
+    /** 战场：`classic` 竖轨 · `diagonal` 斜向环轨 */
+    this.mapStyle = "classic";
 
     /** 王权齐射：本局累计击杀蓄力，满格后主动释放 */
     this.kingSkillKillCharge = 0;
@@ -123,26 +156,60 @@ export class Game {
       for (let s = 0; s < SLOTS_PER_BELT; s++) {
         slots.push({ pudding: null });
       }
+      const x = BELT_CENTERS_X[i];
       this.belts.push({
         id: i,
-        x: BELT_CENTERS_X[i],
+        x,
         scroll: i * 36,
         slots,
+        p0: { x, y: PLAY_TOP },
+        p1: { x, y: PLAY_BOTTOM },
       });
     }
+    this.applyBeltLayout();
   }
 
   start() {
     this.reset();
-    this.phase = "placeStarter";
+    this.phase = "mapSelect";
     this.gold = 10;
+  }
+
+  /**
+   * 在选关界面点选后进入放置阶段；会按 `mapStyle` 重算各轨端点。
+   * @param {"classic"|"diagonal"} mapStyle
+   */
+  selectMap(mapStyle) {
+    if (this.phase !== "mapSelect") return;
+    this.mapStyle = mapStyle === "diagonal" ? "diagonal" : "classic";
+    this.applyBeltLayout();
+    this.phase = "placeStarter";
+  }
+
+  applyBeltLayout() {
+    for (let i = 0; i < this.belts.length; i++) {
+      const b = this.belts[i];
+      if (this.mapStyle === "diagonal") {
+        const cx = BELT_CENTERS_X[i];
+        b.p0 = { x: cx - 178, y: PLAY_TOP + 32 + i * 7 };
+        b.p1 = { x: cx + 168, y: PLAY_BOTTOM - 36 - i * 6 };
+      } else {
+        const x = BELT_CENTERS_X[i];
+        b.p0 = { x, y: PLAY_TOP };
+        b.p1 = { x, y: PLAY_BOTTOM };
+      }
+      b.x = (b.p0.x + b.p1.x) / 2;
+    }
   }
 
   slotWorldPos(belt, slotIndex) {
     const along = slotAlong(slotIndex);
-    const y = PLAY_TOP + modPos(along + belt.scroll);
+    const raw = modPos(along + belt.scroll);
+    const u = raw / PLAY_H;
+    const x = belt.p0.x + (belt.p1.x - belt.p0.x) * u;
+    const y = belt.p0.y + (belt.p1.y - belt.p0.y) * u;
     const lane = yToLane(y);
-    return { x: belt.x, y, lane };
+    return { x, y, lane };
   }
 
   countPuddings() {
@@ -181,7 +248,6 @@ export class Game {
     let bestD = Infinity;
     for (let bi = 0; bi < this.belts.length; bi++) {
       const belt = this.belts[bi];
-      if (Math.abs(mx - belt.x) > BELT_HIT_HW + 20) continue;
       for (let si = 0; si < belt.slots.length; si++) {
         if (belt.slots[si].pudding) continue;
         const p = this.slotWorldPos(belt, si);
@@ -299,7 +365,6 @@ export class Game {
     let bestD = Infinity;
     for (let bi = 0; bi < this.belts.length; bi++) {
       const belt = this.belts[bi];
-      if (Math.abs(mx - belt.x) > BELT_HIT_HW + 24) continue;
       for (let si = 0; si < belt.slots.length; si++) {
         const p = this.slotWorldPos(belt, si);
         const d = dist(mx, my, p.x, p.y);
@@ -316,26 +381,41 @@ export class Game {
   hitBeltColumn(mx, my) {
     if (my < PLAY_TOP || my > PLAY_BOTTOM) return null;
     let best = null;
-    let bestDx = Infinity;
+    let bestD = Infinity;
     for (let bi = 0; bi < this.belts.length; bi++) {
       const belt = this.belts[bi];
       if (belt.hijackEnemyId) continue;
-      const dx = Math.abs(mx - belt.x);
-      if (dx <= BELT_HIT_HW && dx < bestDx) {
-        bestDx = dx;
+      const d = pointSegDistance(
+        mx,
+        my,
+        belt.p0.x,
+        belt.p0.y,
+        belt.p1.x,
+        belt.p1.y
+      );
+      if (d <= BELT_HIT_HW + 8 && d < bestD) {
+        bestD = d;
         best = bi;
       }
     }
     return best;
   }
 
-  /** 轰炸落点：在战场竖带内、国王右侧，且不在任一竖轨宽带内 */
+  /** 轰炸落点：在战场竖带内、国王右侧，且不在任一环轨宽带内 */
   isValidCornBombPosition(mx, my) {
     if (this.phase !== "combat") return false;
     if (my < PLAY_TOP + 10 || my > PLAY_BOTTOM - 10) return false;
     if (mx < KING_X2 + 52 || mx > CANVAS_W - 28) return false;
     for (const belt of this.belts) {
-      if (Math.abs(mx - belt.x) < BELT_HIT_HW + 48) return false;
+      const d = pointSegDistance(
+        mx,
+        my,
+        belt.p0.x,
+        belt.p0.y,
+        belt.p1.x,
+        belt.p1.y
+      );
+      if (d < BELT_HIT_HW + 48) return false;
     }
     return true;
   }
@@ -383,7 +463,7 @@ export class Game {
   }
 
   /**
-   * 数字键 1..BELT_COUNT 切换到对应竖轨，由 applyKeyboardBeltFollowFromMouse 贴合鼠标；
+   * 数字键 1..BELT_COUNT 切换到对应环轨，由 applyKeyboardBeltFollowFromMouse 将指定槽贴合到指针在轨上的投影；
    * 拖拽布丁中时忽略以免冲突。
    */
   setKeyboardBeltFollowFromKey(beltIndex) {
@@ -415,8 +495,8 @@ export class Game {
     }
   }
 
-  /** 将当前选中轨的中间槽对齐到画布纵坐标 `my`（无需按住左键） */
-  applyKeyboardBeltFollowFromMouse(_mx, my) {
+  /** 将当前选中轨的中间槽对齐到指针在环轨上的投影（无需按住左键） */
+  applyKeyboardBeltFollowFromMouse(mx, my) {
     const bi =
       this.keyboardBeltFollowBi;
     if (bi == null) return;
@@ -432,15 +512,20 @@ export class Game {
       this.clearKeyboardBeltFollow();
       return;
     }
-    const ty = clamp(
-      my,
-      PLAY_TOP,
-      PLAY_BOTTOM
+    const p0 = belt.p0;
+    const p1 = belt.p1;
+    const abx = p1.x - p0.x;
+    const aby = p1.y - p0.y;
+    const ab2 = abx * abx + aby * aby || 1;
+    const t = clamp(
+      ((mx - p0.x) * abx + (my - p0.y) * aby) / ab2,
+      0,
+      1
     );
 
     // 展开的 scroll：与上一帧在实数轴上取最短等价类，避免仅 mod PLAY_H 时跨边产生约一整槽的相位跳变
     const uxTarget =
-      ty - PLAY_TOP -
+      t * PLAY_H -
       slotAlong(KEYBOARD_BELT_SNAP_SLOT);
     const prevUx =
       belt._keyboardScrollUx !== undefined ? belt._keyboardScrollUx : belt.scroll;
@@ -467,8 +552,7 @@ export class Game {
     /** 仅禁止「空白拖轨」滚动；劫持轨上仍可拖布丁换位（上分支已处理） */
     const col = this.hitBeltColumn(mx, my);
     if (col !== null) {
-      this.drag = { kind: "belt", bi: col };
-      this.dragLastMy = my;
+      this.drag = { kind: "belt", bi: col, lastMx: mx, lastMy: my };
       return { type: "belt" };
     }
     return null;
@@ -482,10 +566,16 @@ export class Game {
         this.drag = null;
         return;
       }
-      const dy = my - this.dragLastMy;
-      this.dragLastMy = my;
-      belt.scroll += dy;
-      belt.vy = dy / 0.016; // Approx velocity
+      const { ux, uy } = beltUnitAlong(belt);
+      const lx = this.drag.lastMx ?? my;
+      const ly = this.drag.lastMy ?? my;
+      const dmx = mx - lx;
+      const dmy = my - ly;
+      this.drag.lastMx = mx;
+      this.drag.lastMy = my;
+      const ds = dmx * ux + dmy * uy;
+      belt.scroll += ds;
+      belt.vy = ds / 0.016;
     } else if (this.drag.kind === "pudding") {
       this.drag.mx = mx;
       this.drag.my = my;
@@ -767,18 +857,19 @@ export class Game {
           syncLaneY();
         } else if (kind === "hijacker") {
           const bi = e.hijackBeltId ?? 1;
-          const bx = BELT_CENTERS_X[bi] ?? BELT_CENTERS_X[1];
+          const belt = this.belts[bi];
+          const hookX = belt ? beltLeftHookX(belt) + 52 : BELT_CENTERS_X[bi] ?? BELT_CENTERS_X[1];
           if (e.hijackPhase === "linked") {
             e.vx = 0;
             syncLaneY();
           } else {
             e.x += e.vx * dt;
             syncLaneY();
-            if (e.hijackPhase === "approach" && e.x <= bx + 40) {
-              const belt = this.belts[bi];
+            if (e.hijackPhase === "approach" && e.x <= hookX) {
               if (belt && !belt.hijackEnemyId) {
                 e.hijackPhase = "linked";
-                e.x = Math.max(bx + 14, Math.min(e.x, bx + 34));
+                const anchor = beltLeftHookX(belt) + 26;
+                e.x = Math.max(anchor + 6, Math.min(e.x, anchor + 28));
                 e.vx = 0;
                 belt.hijackEnemyId = e.id;
                 belt.hijackScrollSpeed = e.hijackScrollSpeed ?? 88;
@@ -789,7 +880,9 @@ export class Game {
                   belt.scroll = modPos(belt.scroll);
                   this.drag = null;
                 }
-                this.addFloatText(belt.x, PLAY_TOP + 30, "轨道被劫持", "#ff9a4a");
+                const tx = (belt.p0.x + belt.p1.x) * 0.5;
+                const ty = (belt.p0.y + belt.p1.y) * 0.38;
+                this.addFloatText(tx, ty, "轨道被劫持", "#ff9a4a");
               } else {
                 e.hijackPhase = "failed";
               }
@@ -1380,8 +1473,8 @@ export class Game {
       if (e.enemyKind !== "hijacker" || e.hijackPhase !== "linked") continue;
       const belt = this.belts[e.hijackBeltId];
       if (!belt) continue;
-      const bx = belt.x;
-      const midY = (PLAY_TOP + PLAY_BOTTOM) * 0.5;
+      const tx = (belt.p0.x + belt.p1.x) * 0.5;
+      const ty = (belt.p0.y + belt.p1.y) * 0.5;
       ctx.save();
       ctx.strokeStyle = "rgba(255, 140, 70, 0.92)";
       ctx.lineWidth = 2.5;
@@ -1389,7 +1482,7 @@ export class Game {
       ctx.lineDashOffset = -(t * 0.05) % 20;
       ctx.beginPath();
       ctx.moveTo(e.x, e.y);
-      ctx.lineTo(bx, midY);
+      ctx.lineTo(tx, ty);
       ctx.stroke();
       ctx.setLineDash([]);
       ctx.lineDashOffset = 0;
@@ -1437,27 +1530,38 @@ export class Game {
   }
 
   drawVerticalBeltTrack(ctx, belt) {
-    const x = belt.x;
+    const p0 = belt.p0;
+    const p1 = belt.p1;
+    const L = beltSegLen(belt);
+    const { ux, uy } = beltUnitAlong(belt);
     const hw = 26;
-    const top = PLAY_TOP;
-    const bot = PLAY_BOTTOM;
+    const px = -uy * hw;
+    const py = ux * hw;
     const hijacked = !!belt.hijackEnemyId;
     const keyFollow =
       !hijacked && this.keyboardBeltFollowBi === belt.id;
     ctx.save();
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(p0.x + px, p0.y + py);
+    ctx.lineTo(p1.x + px, p1.y + py);
+    ctx.lineTo(p1.x - px, p1.y - py);
+    ctx.lineTo(p0.x - px, p0.y - py);
+    ctx.closePath();
     ctx.fillStyle = hijacked
       ? "rgba(72, 32, 28, 0.93)"
       : keyFollow
         ? "rgba(55, 40, 72, 0.92)"
         : "rgba(38, 28, 52, 0.88)";
-    ctx.fillRect(x - hw, top, hw * 2, bot - top);
+    ctx.fill();
     ctx.strokeStyle = hijacked
       ? "#ff7a44"
       : keyFollow
         ? "#9ee671"
         : "#4a3a5c";
     ctx.lineWidth = hijacked ? 3 : keyFollow ? 3 : 2;
-    ctx.strokeRect(x - hw + 1, top + 1, hw * 2 - 2, bot - top - 2);
+    ctx.stroke();
 
     ctx.strokeStyle = hijacked
       ? "rgba(255, 120, 60, 0.75)"
@@ -1466,22 +1570,13 @@ export class Game {
         : "rgba(158, 230, 113, 0.35)";
     ctx.lineWidth = 2;
     ctx.setLineDash([6, 8]);
-    ctx.lineDashOffset = -modPos(belt.scroll);
+    ctx.lineDashOffset = -(modPos(belt.scroll) * (L / PLAY_H));
     ctx.beginPath();
-    ctx.moveTo(x, top);
-    ctx.lineTo(x, bot);
+    ctx.moveTo(p0.x, p0.y);
+    ctx.lineTo(p1.x, p1.y);
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.lineDashOffset = 0;
-
-    ctx.strokeStyle = "rgba(0,0,0,0.45)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(x, top, hw, 0, Math.PI, true);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(x, bot, hw, Math.PI, 0, true);
-    ctx.stroke();
 
     ctx.fillStyle = hijacked
       ? "rgba(255, 140, 90, 0.45)"
@@ -1490,8 +1585,17 @@ export class Game {
         : "rgba(158, 230, 113, 0.2)";
     ctx.font = '700 11px "Silkscreen", monospace';
     ctx.textAlign = "center";
-    ctx.fillText(hijacked ? "!" : "↻", x, top - 6);
-    ctx.fillText(hijacked ? "!" : "↻", x, bot + 16);
+    const ol = 18;
+    ctx.fillText(
+      hijacked ? "!" : "↻",
+      p0.x - ux * ol - uy * 12,
+      p0.y - uy * ol + ux * 12
+    );
+    ctx.fillText(
+      hijacked ? "!" : "↻",
+      p1.x + ux * ol + uy * 12,
+      p1.y + uy * ol - ux * 12
+    );
     ctx.restore();
   }
 
@@ -1837,6 +1941,7 @@ export class Game {
       kingHp: this.kingHp,
       kingMaxHp: this.kingMaxHp,
       phase: this.phase,
+      mapStyle: this.mapStyle,
       victory: this.victory,
       gameOver: this.gameOver,
       synergyLine: formatSynergySummary(counts),

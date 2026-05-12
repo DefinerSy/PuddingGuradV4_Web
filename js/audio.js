@@ -311,7 +311,10 @@ export function onGamePhaseChanged(newPhase, oldPhase, flags = {}) {
     endedSfxPlayed = false;
     stopBgmLoop();
   }
-  if (newPhase === "placeStarter" && oldPhase === "menu") {
+  if (
+    newPhase === "placeStarter" &&
+    (oldPhase === "menu" || oldPhase === "mapSelect")
+  ) {
     endedSfxPlayed = false;
   }
 

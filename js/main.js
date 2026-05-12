@@ -35,6 +35,7 @@ window.addEventListener(
 const el = (id) => document.getElementById(id);
 
 const overlayMenu = el("overlay-menu");
+const overlayMapSelect = el("overlay-map-select");
 const overlayPlace = el("overlay-place");
 const overlayShop = el("overlay-shop");
 const overlayEnd = el("overlay-end");
@@ -130,6 +131,7 @@ function releaseCanvasPointerCaptureTracked() {
 function syncOverlays() {
   const h = game.getHud();
   setVisible(overlayMenu, h.phase === "menu");
+  setVisible(overlayMapSelect, h.phase === "mapSelect");
   setVisible(overlayPlace, h.phase === "placeStarter");
   setVisible(overlayShop, h.phase === "shop");
   setVisible(overlayEnd, h.phase === "ended");
@@ -194,14 +196,19 @@ function syncHud() {
   }
 
   if (h.phase === "placeStarter") {
-    hudHint.textContent =
-      "点击任意「空槽」圆位放置第一只布丁；每条环轨有多个固定槽，之后可拖布丁换位。";
+    const m =
+      h.mapStyle === "diagonal" ? "斜廊战场" : "经典竖轨";
+    hudHint.textContent = `当前：${m}。点击任意「空槽」圆位放置第一只布丁；每条环轨有多个固定槽，之后可拖布丁换位。`;
   } else if (h.phase === "combat") {
+    const m =
+      h.mapStyle === "diagonal" ? "斜廊战场" : "经典竖轨";
     const base =
-      "空白处上下拖环轨：整根带子一起卷动，槽位随之循环。\n拖住布丁拖到另一槽位可换位（含跨轨）。布丁高度决定打哪一路。\n键 1/2/3：指定三条环轨之一，中轨槽紧贴指针竖直位置（勿按左键）；左键点一下取消。\n青雾幽灵会横向换路；粉雾幽灵在中距停步并发射粉弹攻击布丁或国王；波次靠后特殊敌人出现更频繁。\n琥珀轨骇幽灵贴近一条环轨后会用虚线劫持该轨：该轨自动滚动，至死前不可拖该轨或用数字键控制其滚动；仍可拖布丁在任意槽位间换位（含被劫持轨）。\n玉米加农炮布丁拖到<strong>环轨外侧</strong>松手可范围轰炸（冷却随等级缩短）。\n击杀敌人可为「王权齐射」蓄力，满后按空格：五路各一发穿透高伤。";
+      `当前：${m}。空白处拖环轨：整根带子沿轨方向卷动，槽位随之循环。\n拖住布丁拖到另一槽位可换位（含跨轨）。布丁高度决定打哪一路。\n键 1/2/3：指定三条环轨之一，中轨槽贴合指针在轨上的投影（勿按左键）；左键点一下取消。\n青雾幽灵会横向换路；粉雾幽灵在中距停步并发射粉弹攻击布丁或国王；波次靠后特殊敌人出现更频繁。\n琥珀轨骇幽灵贴近一条环轨后会用虚线劫持该轨：该轨自动滚动，至死前不可拖该轨或用数字键控制其滚动；仍可拖布丁在任意槽位间换位（含被劫持轨）。\n玉米加农炮布丁拖到<strong>环轨外侧</strong>松手可范围轰炸（冷却随等级缩短）。\n击杀敌人可为「王权齐射」蓄力，满后按空格：五路各一发穿透高伤。`;
     hudHint.textContent = h.synergyLine ? `${base}\n${h.synergyLine}` : base;
   } else if (h.phase === "shop") {
     hudHint.textContent = "在商店购买新布丁或强化，然后进入下一波。";
+  } else if (h.phase === "mapSelect") {
+    hudHint.textContent = "请选择一张战场地图，然后放置开局布丁。";
   } else if (h.phase === "menu") {
     hudHint.textContent = "点击「开始游戏」。";
   } else {
@@ -234,6 +241,23 @@ async function tryStartGameFromMenu() {
     console.error("开始游戏失败", err);
   }
 }
+
+function commitMapSelection(mapStyle) {
+  if (game.phase !== "mapSelect") return;
+  const oldPhase = game.phase;
+  game.selectMap(mapStyle);
+  onGamePhaseChanged(game.phase, oldPhase, {});
+  syncOverlays();
+  syncHud();
+}
+
+el("btn-map-classic")?.addEventListener("click", () => {
+  commitMapSelection("classic");
+});
+
+el("btn-map-diagonal")?.addEventListener("click", () => {
+  commitMapSelection("diagonal");
+});
 
 /** 菜单层委托 */
 overlayMenu?.addEventListener("click", (e) => {
