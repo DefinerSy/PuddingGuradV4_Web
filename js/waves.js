@@ -1,4 +1,4 @@
-/** 非 BOSS：按波次随机敌人类型 */
+/** 非 BOSS：按波次随机敌人类型（后期大幅提高特殊怪占比） */
 export function rollEnemyKindForWave(wave) {
   const r = Math.random();
   if (wave <= 3) return "ghost";
@@ -11,15 +11,23 @@ export function rollEnemyKindForWave(wave) {
   }
 
   if (wave <= 12) {
-    if (r < 0.2) return "shifter";
-    if (r < 0.35) return "ranged";
-    if (r < 0.46) return "hijacker";
+    if (r < 0.22) return "shifter";
+    if (r < 0.39) return "ranged";
+    if (r < 0.55) return "hijacker";
     return "ghost";
   }
 
-  if (r < 0.24) return "shifter";
-  if (r < 0.42) return "ranged";
-  if (r < 0.54) return "hijacker";
+  if (wave <= 15) {
+    if (r < 0.26) return "shifter";
+    if (r < 0.48) return "ranged";
+    if (r < 0.68) return "hijacker";
+    return "ghost";
+  }
+
+  // 第 16–19 波：特殊敌人为主，普通幽灵约两成
+  if (r < 0.3) return "shifter";
+  if (r < 0.56) return "ranged";
+  if (r < 0.8) return "hijacker";
   return "ghost";
 }
 
