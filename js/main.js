@@ -112,6 +112,7 @@ function canvasPoint(clientX, clientY) {
 }
 
 function setVisible(node, on) {
+  if (!node) return;
   node.classList.toggle("hidden", !on);
 }
 

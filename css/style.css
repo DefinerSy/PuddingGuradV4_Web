@@ -197,8 +197,8 @@ body::before {
   pointer-events: auto;
 }
 
-#overlay-map-select.overlay {
-  z-index: 1150;
+.stage-host > #overlay-map-select.overlay {
+  z-index: 1250;
   pointer-events: auto;
 }
 

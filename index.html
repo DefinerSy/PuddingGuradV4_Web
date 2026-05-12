@@ -45,23 +45,6 @@
       <main class="stage">
         <canvas id="game" width="1200" height="640" aria-label="游戏画面"></canvas>
 
-        <div id="overlay-map-select" class="overlay panel hidden">
-          <h2>选择战场</h2>
-          <p class="tagline map-select-lead">
-            两张地图波次与敌人相同，仅<strong>环轨排布</strong>不同：经典为三根竖轨；斜廊为场地内倾斜的三条环轨。
-          </p>
-          <div class="map-pick-grid">
-            <button type="button" id="btn-map-classic" class="map-card">
-              <span class="map-card-title">经典竖轨</span>
-              <span class="map-card-desc">与早期版本一致的三根纵向环轨。</span>
-            </button>
-            <button type="button" id="btn-map-diagonal" class="map-card">
-              <span class="map-card-title">斜廊战场</span>
-              <span class="map-card-desc">三条斜向贯穿场地的环轨；拖轨滚动沿斜线贴合，数字键操控亦按指针在轨上的投影对齐。</span>
-            </button>
-          </div>
-        </div>
-
         <div id="overlay-place" class="overlay panel hidden">
           <h2>放置初始布丁</h2>
           <p>在任意环轨上的<strong>空槽位</strong>点击放置第一只布丁；多槽可换位，商店可买不同词条的布丁。</p>
@@ -97,11 +80,29 @@
         </button>
         <p class="small">开局一只原味布丁；同名词条份数越多协同越强（类似《土豆兄弟》叠层）。</p>
       </div>
+
+      <!-- 与主菜单同级并叠在画布之上，避免被主菜单层或画布合成层挡住 -->
+      <div id="overlay-map-select" class="overlay panel hidden">
+        <h2>选择战场</h2>
+        <p class="tagline map-select-lead">
+          两张地图波次与敌人相同，仅<strong>环轨排布</strong>不同：经典为三根竖轨；斜廊为场地内倾斜的三条环轨。
+        </p>
+        <div class="map-pick-grid">
+          <button type="button" id="btn-map-classic" class="map-card">
+            <span class="map-card-title">经典竖轨</span>
+            <span class="map-card-desc">与早期版本一致的三根纵向环轨。</span>
+          </button>
+          <button type="button" id="btn-map-diagonal" class="map-card">
+            <span class="map-card-title">斜廊战场</span>
+            <span class="map-card-desc">三条斜向贯穿场地的环轨；拖轨滚动沿斜线贴合，数字键操控亦按指针在轨上的投影对齐。</span>
+          </button>
+        </div>
+      </div>
     </div>
 
   </div>
 
   <div id="tooltip" class="tooltip hidden"></div>
-  <script type="module" src="js/main.js"></script>
+  <script type="module" src="js/main.js?v=20260212-mapfix"></script>
 </body>
 </html>
