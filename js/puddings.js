@@ -159,6 +159,26 @@ export const PUDDING_TYPES = {
   }
 };
 
+/**
+ * 商店随机布丁类型：辅助型（坚果盾卫 / 增益布丁）权重更高。
+ */
+export function rollShopPuddingTypeId() {
+  const ids = Object.keys(PUDDING_TYPES).filter((k) => k !== "vanilla");
+  const weights = ids.map((id) => {
+    const m = PUDDING_TYPES[id].mechanic;
+    if (m === "defender" || (m && String(m).startsWith("buff_"))) return 2.85;
+    return 1;
+  });
+  let total = 0;
+  for (const w of weights) total += w;
+  let r = Math.random() * total;
+  for (let i = 0; i < ids.length; i++) {
+    r -= weights[i];
+    if (r <= 0) return ids[i];
+  }
+  return ids[ids.length - 1];
+}
+
 export function makePudding(typeId, level = 1) {
   const def = PUDDING_TYPES[typeId];
   if (!def) return makePudding("vanilla", level);

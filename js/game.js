@@ -6,6 +6,7 @@ import {
   formatSynergySummary,
   makePudding,
   PUDDING_TYPES,
+  rollShopPuddingTypeId,
 } from "./puddings.js";
 import {
   sfxAoeBoom,
@@ -1605,10 +1606,9 @@ export class Game {
 
   rollShopOffers() {
     const pool = [];
-    const typeIds = Object.keys(PUDDING_TYPES).filter((k) => k !== "vanilla");
 
     for (let k = 0; k < 3; k++) {
-      const tid = typeIds[Math.floor(Math.random() * typeIds.length)];
+      const tid = rollShopPuddingTypeId();
       const def = PUDDING_TYPES[tid];
       
       let lvl = 1;

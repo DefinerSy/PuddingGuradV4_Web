@@ -27,23 +27,25 @@ export function rollEnemyKindForWave(wave) {
 export function buildWaveTable() {
   const table = [];
   for (let w = 1; w <= 19; w++) {
+    const late = Math.max(0, w - 7);
+    const end = Math.max(0, w - 13);
     table[w] = {
       ghosts: 4 + Math.floor(w * 1.4),
-      spawnInterval: Math.max(0.55, 1.15 - w * 0.03),
-      hp: 18 + w * 8,
-      speed: 52 + w * 3,
-      damageToKing: 8 + Math.floor(w / 3),
-      bounty: 2 + Math.floor(w / 4),
+      spawnInterval: Math.max(0.52, 1.12 - w * 0.032),
+      hp: 18 + w * 9 + late * 5 + end * 10,
+      speed: 52 + w * 3 + Math.floor(late * 1.4),
+      damageToKing: 8 + Math.floor(w / 3) + Math.floor(Math.max(0, w - 5) / 2),
+      bounty: 2 + Math.floor(w / 4) + (w >= 12 ? 1 : 0),
       clearGold: 6 + w * 2,
     };
   }
   table[20] = {
     ghosts: 1,
     spawnInterval: 0,
-    hp: 1400,
-    speed: 28,
-    damageToKing: 35,
-    bounty: 80,
+    hp: 1680,
+    speed: 30,
+    damageToKing: 40,
+    bounty: 88,
     clearGold: 50,
     boss: true,
   };
