@@ -1576,7 +1576,7 @@ export class Game {
     if (!o.canBuy()) return false;
     this.gold -= o.price;
     o.buy();
-    o.price = Math.floor(o.price * 1.22);
+    this.shopOffers.splice(index, 1);
     return true;
   }
 
