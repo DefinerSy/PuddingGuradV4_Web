@@ -21,6 +21,14 @@ const game = new Game(canvas);
 
 window.PuddingGuardUnlockAudio = unlockAudioFromGesture;
 
+window.addEventListener(
+  "pointerdown",
+  () => {
+    unlockAudioFromGesture();
+  },
+  { capture: true, passive: true }
+);
+
 const el = (id) => document.getElementById(id);
 
 const overlayMenu = el("overlay-menu");
@@ -42,7 +50,8 @@ const tooltip = el("tooltip");
 const btnAudioMute = el("btn-audio-mute");
 
 function updateAudioMuteLabel() {
-  if (btnAudioMute) btnAudioMute.textContent = isMuted() ? "静音中" : "有声";
+  if (btnAudioMute)
+    btnAudioMute.textContent = isMuted() ? "开声" : "静音";
 }
 
 let rerollCost = 5;

@@ -3,7 +3,7 @@
  * 需在用户手势后调用 resumeAudio() 以解除浏览器自动播放限制。
  */
 
-const STORAGE_KEY = "pudding_guard_audio_v1";
+const STORAGE_KEY = "pudding_guard_audio_v3";
 
 let ctx = null;
 let masterGain = null;
@@ -20,11 +20,15 @@ let endedSfxPlayed = false;
 function loadPrefs() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return;
+    if (!raw) {
+      muted = false;
+      return;
+    }
     const j = JSON.parse(raw);
     if (typeof j.muted === "boolean") muted = j.muted;
+    else muted = false;
   } catch {
-    /* ignore */
+    muted = false;
   }
 }
 
@@ -62,18 +66,51 @@ function ensureContext() {
   masterGain = ctx.createGain();
   masterGain.gain.value = muted ? 0 : 1;
   sfxGain = ctx.createGain();
-  sfxGain.gain.value = 0.72;
+  sfxGain.gain.value = 0.95;
   bgmGain = ctx.createGain();
-  bgmGain.gain.value = 0.32;
+  bgmGain.gain.value = 0.42;
   sfxGain.connect(masterGain);
   bgmGain.connect(masterGain);
   masterGain.connect(ctx.destination);
   return ctx;
 }
 
+/** 走完整条主增益链，部分 WebKit 需真正 start 过节点后才有输出。 */
+function primeAudioGraph(c) {
+  if (!masterGain || muted) return;
+  try {
+    const t = c.currentTime;
+    const frames = Math.max(64, Math.ceil(0.04 * c.sampleRate));
+    const buf = c.createBuffer(1, frames, c.sampleRate);
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    const g = c.createGain();
+    g.gain.value = 0;
+    src.connect(g);
+    g.connect(masterGain);
+    src.start(t);
+    src.stop(t + 0.05);
+  } catch (e) {
+    console.warn("[audio] prime buffer", e);
+  }
+  try {
+    const t = c.currentTime;
+    const o = c.createOscillator();
+    o.type = "sine";
+    o.frequency.value = 880;
+    const g = c.createGain();
+    g.gain.value = 0;
+    o.connect(g);
+    g.connect(masterGain);
+    o.start(t);
+    o.stop(t + 0.001);
+  } catch (e) {
+    console.warn("[audio] prime osc", e);
+  }
+}
+
 /**
- * 必须在用户手势的同步调用栈内执行（不要 await 之后再调），
- * 否则 Chrome / Safari 可能一直保持 suspended，导致全程无声。
+ * 必须在用户手势的同步调用栈内调用（不要 await 之后再首次 resume）。
  */
 export function unlockAudioFromGesture() {
   const c = ensureContext();
@@ -81,9 +118,10 @@ export function unlockAudioFromGesture() {
   try {
     if (c.state !== "running") void c.resume();
   } catch (e) {
-    console.warn("[audio] resume failed", e);
+    console.warn("[audio] resume", e);
   }
   applyMuteGain();
+  primeAudioGraph(c);
 }
 
 export async function resumeAudio() {
@@ -125,8 +163,8 @@ function beep({
       osc.frequency.exponentialRampToValueAtTime(fe, t0 + duration);
     }
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(peak, t0 + 0.006);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+    g.gain.linearRampToValueAtTime(peak, t0 + 0.008);
+    g.gain.linearRampToValueAtTime(0.0001, t0 + duration);
     osc.connect(g);
     g.connect(sfxGain);
     osc.start(t0);
@@ -152,7 +190,7 @@ function noiseBurst(duration = 0.04, peak = 0.055, freq = 2200) {
     const t0 = nowT();
     g.gain.setValueAtTime(0.0001, t0);
     g.gain.linearRampToValueAtTime(peak, t0 + 0.008);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+    g.gain.linearRampToValueAtTime(0.0001, t0 + duration);
     src.connect(filt);
     filt.connect(g);
     g.connect(sfxGain);
@@ -173,7 +211,7 @@ function playChord(t0, freqs, duration, vol) {
       osc.frequency.value = f;
       g.gain.setValueAtTime(0.0001, t0);
       g.gain.linearRampToValueAtTime(vol, t0 + 0.12);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+      g.gain.linearRampToValueAtTime(0.0001, t0 + duration);
       osc.connect(g);
       g.connect(bgmGain);
       osc.start(t0);
@@ -192,7 +230,7 @@ function scheduleBgmPulse() {
     bgmMode === "shop"
       ? [196, 246.94, 293.66]
       : [146.83, 174.61, 220];
-  const vol = bgmMode === "shop" ? 0.075 : 0.09;
+  const vol = bgmMode === "shop" ? 0.1 : 0.12;
   playChord(t0, freqs, period * 0.82, vol);
 
   try {
@@ -202,7 +240,7 @@ function scheduleBgmPulse() {
     sub.frequency.value = freqs[0] * 0.5;
     g2.gain.setValueAtTime(0.0001, t0);
     g2.gain.linearRampToValueAtTime(0.055, t0 + 0.06);
-    g2.gain.exponentialRampToValueAtTime(0.0001, t0 + period * 0.48);
+    g2.gain.linearRampToValueAtTime(0.0001, t0 + period * 0.48);
     sub.connect(g2);
     g2.connect(bgmGain);
     sub.start(t0);
@@ -229,6 +267,7 @@ export function setBgmMode(mode) {
   const ms = mode === "shop" ? 2500 : 1650;
   bgmIntervalId = window.setInterval(() => {
     if (!ctx || muted || bgmMode === "off") return;
+    if (ctx.state !== "running") unlockAudioFromGesture();
     scheduleBgmPulse();
   }, ms);
 }
@@ -269,6 +308,11 @@ export function onGamePhaseChanged(newPhase, oldPhase, flags = {}) {
   if (muted || !ctx) {
     stopBgmLoop();
     return;
+  }
+
+  if (ctx.state !== "running") {
+    unlockAudioFromGesture();
+    if (ctx.state !== "running") return;
   }
 
   if (newPhase === "combat" || newPhase === "placeStarter") {
@@ -355,6 +399,7 @@ export function syncBgmToPhase(phase) {
     if (muted) stopBgmLoop();
     return;
   }
+  if (ctx.state !== "running") unlockAudioFromGesture();
   if (phase === "combat" || phase === "placeStarter") {
     stopBgmLoop();
     setBgmMode("combat");
