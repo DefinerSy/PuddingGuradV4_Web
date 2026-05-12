@@ -112,7 +112,11 @@ body {
   display: none;
 }
 
-.panel {
+/* 放置阶段：全屏提示不拦截画布，只有文字与按钮可点 */
+#overlay-place.overlay {
+  pointer-events: none;
+}
+#overlay-place.overlay * {
   pointer-events: auto;
 }
 

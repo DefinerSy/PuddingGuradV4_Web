@@ -150,7 +150,7 @@ canvas.addEventListener("pointerdown", (ev) => {
   const [mx, my] = canvasPoint(ev.clientX, ev.clientY);
   const r = game.onPointerDown(mx, my);
   if (r && r.type === "place") {
-    game.placeStarterOnBelt(r.belt, mx, my);
+    game.placeStarter(mx, my);
     syncOverlays();
     syncHud();
   }

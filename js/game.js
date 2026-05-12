@@ -25,7 +25,7 @@ const BELT_CENTERS_X = [340, 600, 860];
 const BELT_HIT_HW = 34;
 const PUDDING_HIT_R = 28;
 const SLOT_PICK_R = 44;
-const MAX_PLACE_START_DIST = 120;
+const MAX_PLACE_START_DIST = 200;
 
 function laneCenterY(lane) {
   const h = PLAY_H / LANES;
