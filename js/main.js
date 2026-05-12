@@ -1,4 +1,6 @@
 import { Game } from "./game.js?v=20260212-menu2";
+// audio 模块必须与 game.js 中的 import 路径一致（同为 ./audio.js），否则会出现两套
+// Web Audio 状态：main 里 resume 的上下文与 game 里 sfx* 使用的不是同一个，表现为全无音效。
 import {
   isMuted,
   onGamePhaseChanged,
@@ -11,7 +13,7 @@ import {
   sfxUiDeny,
   syncBgmToPhase,
   unlockAudioFromGesture,
-} from "./audio.js?v=20260212-menu2";
+} from "./audio.js";
 
 if (typeof window.PuddingGuardStart !== "function") {
   window.PuddingGuardStart = (..._args) => {
