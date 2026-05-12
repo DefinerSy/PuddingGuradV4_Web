@@ -55,6 +55,29 @@ const tooltip = el("tooltip");
 const btnAudioMute = el("btn-audio-mute");
 const appRoot = el("app") ?? document.body;
 
+/** 商店卡片：委托点击 + data-offer-id，避免闭包索引错误导致购买后卡片不消失 */
+shopCards?.addEventListener("click", (e) => {
+  if (game.getHud().phase !== "shop") return;
+  const t = e.target;
+  if (!(t instanceof Element)) return;
+  const card = t.closest(".shop-card");
+  if (!card || !shopCards.contains(card)) return;
+  if (card.classList.contains("disabled")) {
+    sfxUiDeny();
+    return;
+  }
+  const offerId = card.getAttribute("data-offer-id");
+  if (!offerId) return;
+  const idx = game.shopOffers.findIndex((o) => o.id === offerId);
+  if (idx < 0) return;
+  if (game.buyOffer(idx)) {
+    sfxBuy();
+    shopGold.textContent = String(game.gold);
+    renderShop();
+    syncHud();
+  }
+});
+
 appRoot.addEventListener(
   "pointerdown",
   (e) => {
@@ -139,21 +162,14 @@ function syncOverlays() {
 function renderShop() {
   shopCards.innerHTML = "";
   const offers = game.shopOffers || [];
-  offers.forEach((o, i) => {
+  offers.forEach((o) => {
     const card = document.createElement("div");
     card.className = "shop-card";
+    card.setAttribute("data-offer-id", o.id);
     const affordable = game.gold >= o.price;
     const allowed = o.canBuy();
     if (!affordable || !allowed) card.classList.add("disabled");
     card.innerHTML = `<strong>${o.title}</strong><p class="small" style="margin:8px 0 0;color:var(--muted)">${o.desc}</p><div class="price">${o.price} 金</div>`;
-    card.addEventListener("click", () => {
-      if (game.buyOffer(i)) {
-        sfxBuy();
-        shopGold.textContent = String(game.gold);
-        renderShop();
-        syncHud();
-      }
-    });
     shopCards.appendChild(card);
   });
 }
