@@ -1,13 +1,23 @@
 :root {
-  --bg: #0f1221;
-  --panel: #1a1f33;
-  --accent: #ffb86c;
-  --mint: #7ae7c7;
-  --danger: #ff6b8a;
-  --ghost: rgba(255, 255, 255, 0.08);
-  --text: #e8ecff;
-  --muted: #8b93b8;
-  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --bg-deep: #0c0812;
+  --bg-mid: #1a1224;
+  --bg-elev: #241a32;
+  --panel: #2d1f3d;
+  --panel-edge: #4a3a5c;
+  --accent: #f4e04d;
+  --accent-hot: #fff275;
+  --mint: #9ee671;
+  --mint-dim: #6bc94a;
+  --danger: #ff5c7a;
+  --danger-soft: #ff8da3;
+  --ghost: rgba(255, 255, 255, 0.06);
+  --text: #f4efe8;
+  --muted: #9a8ba8;
+  --shop-purple: #8b6bc9;
+  --shop-purple-dim: #5c3d8a;
+  --shadow-ink: rgba(0, 0, 0, 0.55);
+  font-family: "Noto Sans SC", "Segoe UI", "PingFang SC", "Microsoft YaHei",
+    sans-serif;
 }
 
 * {
@@ -16,46 +26,83 @@
 
 body {
   margin: 0;
-  background: radial-gradient(1200px 600px at 50% 0%, #1c2340 0%, var(--bg) 55%);
-  color: var(--text);
   min-height: 100vh;
+  color: var(--text);
+  background: var(--bg-deep);
+  background-image: radial-gradient(
+      ellipse 140% 80% at 50% -10%,
+      #3a2848 0%,
+      transparent 55%
+    ),
+    radial-gradient(ellipse 90% 60% at 80% 100%, #1a1020 0%, transparent 50%),
+    linear-gradient(180deg, #16101c 0%, var(--bg-deep) 45%, #0a060c 100%);
+  position: relative;
+}
+
+/* 轻微颗粒感，贴近 Brotato 的粗糙画面 */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.07;
+  z-index: 9999;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 #app {
   max-width: 1220px;
   margin: 0 auto;
-  padding: 12px 12px 24px;
+  padding: 14px 14px 28px;
+  position: relative;
+  z-index: 1;
 }
 
 .hud {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px 20px;
+  gap: 10px 14px;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 .hud-block {
-  background: var(--ghost);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
-  padding: 8px 14px;
-  min-width: 90px;
+  background: linear-gradient(180deg, #352848 0%, var(--panel) 100%);
+  border: 3px solid #1f1528;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 4px 0 #120a18, 0 6px 12px var(--shadow-ink);
+  border-radius: 4px;
+  padding: 8px 14px 10px;
+  min-width: 92px;
 }
 
 .hud-block .label {
   display: block;
-  font-size: 11px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   color: var(--muted);
-  letter-spacing: 0.04em;
+  text-shadow: 0 1px 0 #000;
+}
+
+.hud-block:not(.hint) span:not(.label) {
+  font-family: "Silkscreen", "Noto Sans SC", monospace;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent);
+  text-shadow: 0 2px 0 #2a1808, 0 0 12px rgba(244, 224, 77, 0.25);
 }
 
 .hud-block.hint {
   flex: 1;
   min-width: 200px;
-  font-size: 13px;
-  color: var(--muted);
-  white-space: pre-line;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #c4b8d0;
+  border-color: #2a1f38;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 3px 0 #120a18;
 }
 
 .king-hp {
@@ -63,46 +110,46 @@ body {
 }
 
 .bar-wrap {
-  height: 8px;
-  background: rgba(0, 0, 0, 0.35);
-  border-radius: 6px;
+  height: 10px;
+  background: #0d060c;
+  border-radius: 2px;
   overflow: hidden;
   margin: 6px 0 4px;
+  border: 2px solid #1a1018;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6);
 }
 
 .bar-fill {
   height: 100%;
   width: 100%;
-  background: linear-gradient(90deg, #ff9ed2, #ffd56f);
-  border-radius: 6px;
+  background: linear-gradient(180deg, #d8ff7a 0%, var(--mint) 45%, #4a9a32 100%);
+  border-radius: 1px;
   transform-origin: left center;
   transform: scaleX(1);
+  box-shadow: 0 0 10px rgba(158, 230, 113, 0.45);
 }
 
 .stage-host {
   position: relative;
-  border-radius: 14px;
+  border-radius: 6px;
   overflow: hidden;
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 4px solid #1a121f;
+  box-shadow: 0 0 0 2px #3d2f4a, 0 16px 0 #0d060c, 0 20px 40px rgba(0, 0, 0, 0.65);
 }
 
 .stage {
   position: relative;
 }
 
-/* 移除 :has hack：主菜单已移出 main.stage */
-
 #game {
   display: block;
   width: 100%;
   height: auto;
-  background: #12162a;
+  background: #130c18;
   cursor: crosshair;
   position: relative;
 }
 
-/* 主菜单叠在舞台区整块之上（overlay 为 .stage-host 子元素），z-index 盖过 main 内的 canvas */
 .stage-host > #overlay-menu.overlay {
   z-index: 1200;
   pointer-events: auto;
@@ -110,7 +157,6 @@ body {
   -webkit-backdrop-filter: none;
 }
 
-/* 保证按钮在本层里最顶上一层 */
 #btn-start {
   position: relative;
   z-index: 2;
@@ -126,9 +172,8 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 24px;
-  background: rgba(10, 12, 22, 0.82);
-  backdrop-filter: blur(6px);
+  padding: 28px 20px;
+  background: rgba(10, 6, 16, 0.92);
   text-align: center;
 }
 
@@ -136,7 +181,6 @@ body {
   display: none;
 }
 
-/* 放置阶段：全屏提示不拦截画布，只有文字与按钮可点 */
 #overlay-place.overlay {
   pointer-events: none;
 }
@@ -151,129 +195,173 @@ body {
 }
 
 .panel h1 {
-  margin: 0 0 8px;
-  font-size: 28px;
-  color: var(--accent);
+  margin: 0 0 10px;
+  font-family: "Silkscreen", "Noto Sans SC", sans-serif;
+  font-size: clamp(26px, 4vw, 36px);
+  font-weight: 700;
+  color: var(--accent-hot);
+  text-shadow: 0 3px 0 #5c4a12, 0 0 24px rgba(255, 242, 117, 0.35);
+  letter-spacing: 0.04em;
 }
 
 .panel h2 {
-  margin: 0 0 10px;
+  margin: 0 0 12px;
   font-size: 22px;
+  font-weight: 900;
+  color: #e8dcc8;
+  text-shadow: 0 2px 0 #000;
 }
 
 .tagline {
   color: var(--muted);
-  margin: 0 0 22px;
+  margin: 0 0 24px;
   max-width: 480px;
-  line-height: 1.5;
+  line-height: 1.55;
+  font-size: 14px;
 }
 
 .small {
   font-size: 13px;
   color: var(--muted);
-  margin-top: 16px;
+  margin-top: 18px;
   max-width: 420px;
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
 button {
-  font: inherit;
+  font-family: "Noto Sans SC", sans-serif;
+  font-weight: 800;
+  font-size: 15px;
   cursor: pointer;
-  border: none;
-  border-radius: 10px;
-  padding: 12px 22px;
-  background: linear-gradient(180deg, #5ad4ff, #3aa7e0);
-  color: #0a1624;
-  font-weight: 600;
+  border: 3px solid #1a1018;
+  border-radius: 4px;
+  padding: 14px 28px;
+  color: #120810;
+  background: linear-gradient(180deg, #fff275 0%, var(--accent) 40%, #d4a82a 100%);
+  box-shadow: 0 5px 0 #5c4818, 0 8px 16px rgba(0, 0, 0, 0.45);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 
 button:hover {
-  filter: brightness(1.06);
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+button:active {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 #5c4818, 0 4px 10px rgba(0, 0, 0, 0.4);
 }
 
 button.ghost {
-  background: transparent;
-  color: var(--muted);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: linear-gradient(180deg, #3a3048 0%, #2a2234 100%);
+  color: #d8ccd8;
+  border: 3px solid #1a121f;
+  box-shadow: 0 4px 0 #0d060c, 0 6px 12px rgba(0, 0, 0, 0.35);
   margin-top: 12px;
+  text-shadow: 0 1px 0 #000;
+}
+
+button.ghost:hover {
+  border-color: var(--mint);
+  color: #fff;
 }
 
 button.ghost.tiny {
   margin-top: 6px;
-  padding: 6px 12px;
+  padding: 7px 14px;
   font-size: 12px;
-  border-radius: 8px;
+  border-radius: 3px;
 }
 
 .shop-meta {
-  color: var(--muted);
+  color: #c4b8d0;
   margin: 0 0 16px;
+  font-size: 15px;
+}
+
+.shop-meta strong {
+  font-family: "Silkscreen", monospace;
+  color: var(--accent);
+  font-size: 18px;
 }
 
 .shop-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 12px;
+  gap: 14px;
   width: min(960px, 100%);
-  margin: 0 auto 18px;
+  margin: 0 auto 20px;
 }
 
 .shop-card {
-  background: var(--panel);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  padding: 14px;
+  background: linear-gradient(180deg, #3a2d4a 0%, var(--panel) 100%);
+  border: 3px solid #1f1528;
+  border-radius: 4px;
+  padding: 14px 14px 16px;
   text-align: left;
   cursor: pointer;
-  transition: transform 0.12s ease, border-color 0.12s;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 4px 0 #120a18, 0 6px 14px rgba(0, 0, 0, 0.4);
+  transition: transform 0.1s ease, border-color 0.1s, box-shadow 0.1s;
 }
 
 .shop-card:hover:not(.disabled) {
-  transform: translateY(-2px);
+  transform: translateY(-3px);
   border-color: var(--mint);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 6px 0 #120a18, 0 0 18px rgba(158, 230, 113, 0.25);
 }
 
 .shop-card.disabled {
-  opacity: 0.45;
+  opacity: 0.42;
   cursor: not-allowed;
+  filter: grayscale(0.35);
 }
 
 .shop-card .price {
-  color: #ffd56f;
+  font-family: "Silkscreen", monospace;
+  color: var(--accent);
   font-weight: 700;
-  margin-top: 8px;
+  font-size: 17px;
+  margin-top: 10px;
+  text-shadow: 0 2px 0 #2a1808;
 }
 
 .shop-actions {
   display: flex;
-  gap: 12px;
+  gap: 14px;
   justify-content: center;
   flex-wrap: wrap;
 }
 
 #btn-reroll {
-  background: linear-gradient(180deg, #c9a6ff, #9470e8);
-  color: #140a22;
+  background: linear-gradient(180deg, #c4a8ff 0%, var(--shop-purple) 45%, var(--shop-purple-dim) 100%);
+  color: #f0e8ff;
+  border-color: #1a0f28;
+  text-shadow: 0 1px 0 #000;
+  box-shadow: 0 5px 0 #2d1850, 0 8px 16px rgba(0, 0, 0, 0.45);
 }
 
 #btn-next-wave {
-  background: linear-gradient(180deg, #7ae7c7, #3bbf9a);
-  color: #061a14;
+  background: linear-gradient(180deg, #c8ff9a 0%, var(--mint) 40%, var(--mint-dim) 100%);
+  color: #0a1808;
+  border-color: #0d2810;
+  box-shadow: 0 5px 0 #1a4a22, 0 8px 16px rgba(0, 0, 0, 0.45);
 }
 
 .tooltip {
   position: absolute;
   pointer-events: none !important;
-  background: rgba(10, 15, 30, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  padding: 8px 12px;
-  border-radius: 6px;
-  color: #fff;
-  font-size: 13px;
+  background: linear-gradient(180deg, #2d2438 0%, #1a1220 100%);
+  border: 3px solid #120a14;
+  padding: 10px 14px;
+  border-radius: 4px;
+  color: #e8e0ec;
+  font-size: 12px;
   z-index: 1000;
-  max-width: 240px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-  transform: translate(15px, 15px);
+  max-width: 260px;
+  box-shadow: 0 4px 0 #0a060c, 0 8px 20px rgba(0, 0, 0, 0.55);
+  transform: translate(14px, 14px);
   white-space: pre-wrap;
 }
 
@@ -282,12 +370,15 @@ button.ghost.tiny {
 }
 
 .tooltip h4 {
-  margin: 0 0 6px 0;
-  color: #ffe066;
+  margin: 0 0 8px 0;
+  color: var(--accent-hot);
   font-size: 14px;
+  font-weight: 900;
+  text-shadow: 0 1px 0 #000;
 }
 
 .tooltip p {
-  margin: 2px 0;
-  color: #ccc;
+  margin: 3px 0;
+  color: #c8bdd4;
+  line-height: 1.45;
 }

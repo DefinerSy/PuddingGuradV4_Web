@@ -868,10 +868,18 @@ export class Game {
     const ctx = this.ctx;
     ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
 
-    ctx.fillStyle = "#12162a";
+    const cx = CANVAS_W * 0.48;
+    const cy = PLAY_TOP + PLAY_H * 0.45;
+    const bgGrad = ctx.createRadialGradient(cx, cy, 80, cx, cy, 720);
+    bgGrad.addColorStop(0, "#3d2848");
+    bgGrad.addColorStop(0.35, "#24182c");
+    bgGrad.addColorStop(0.75, "#160f1c");
+    bgGrad.addColorStop(1, "#0c060e");
+    ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
-    ctx.strokeStyle = "rgba(255,255,255,0.04)";
-    ctx.lineWidth = 1;
+
+    ctx.strokeStyle = "rgba(40, 32, 52, 0.9)";
+    ctx.lineWidth = 2;
     for (let i = 0; i <= LANES; i++) {
       const y = PLAY_TOP + (PLAY_H / LANES) * i;
       ctx.beginPath();
@@ -880,17 +888,27 @@ export class Game {
       ctx.stroke();
     }
 
-    const grd = ctx.createLinearGradient(KING_X1, 0, KING_X2, 0);
-    grd.addColorStop(0, "rgba(255, 200, 120, 0.25)");
-    grd.addColorStop(1, "rgba(255, 160, 200, 0.08)");
+    const grd = ctx.createLinearGradient(KING_X1, PLAY_TOP, KING_X2, PLAY_BOTTOM);
+    grd.addColorStop(0, "rgba(80, 50, 40, 0.45)");
+    grd.addColorStop(0.5, "rgba(120, 70, 90, 0.2)");
+    grd.addColorStop(1, "rgba(40, 28, 48, 0.35)");
     ctx.fillStyle = grd;
     ctx.fillRect(KING_X1, PLAY_TOP, KING_X2 - KING_X1, PLAY_BOTTOM - PLAY_TOP);
+    ctx.strokeStyle = "rgba(20, 12, 24, 0.85)";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(
+      KING_X1 + 1.5,
+      PLAY_TOP + 1.5,
+      KING_X2 - KING_X1 - 3,
+      PLAY_BOTTOM - PLAY_TOP - 3
+    );
     this.drawKing(ctx);
 
     const laneH = PLAY_H / LANES;
     for (let i = 0; i < LANES; i++) {
       const y0 = PLAY_TOP + laneH * i;
-      ctx.fillStyle = i % 2 === 0 ? "rgba(255,255,255,0.02)" : "rgba(255,255,255,0.04)";
+      ctx.fillStyle =
+        i % 2 === 0 ? "rgba(45, 38, 55, 0.55)" : "rgba(38, 32, 48, 0.55)";
       ctx.fillRect(BELT_X0, y0, BELT_X1 - BELT_X0, laneH);
     }
 
@@ -910,34 +928,55 @@ export class Game {
 
     for (const s of this.enemyShots) {
       ctx.save();
-      ctx.fillStyle = "rgba(255,75,130,0.95)";
-      ctx.shadowColor = "rgba(255,130,168,0.55)";
-      ctx.shadowBlur = 10;
+      ctx.fillStyle = "#ff4d8a";
+      ctx.shadowColor = "rgba(255, 100, 180, 0.9)";
+      ctx.shadowBlur = 14;
       ctx.beginPath();
-      ctx.arc(s.x, s.y, 6.5, 0, Math.PI * 2);
+      ctx.arc(s.x, s.y, 7, 0, Math.PI * 2);
       ctx.fill();
+      ctx.strokeStyle = "#3a1020";
+      ctx.lineWidth = 2;
+      ctx.stroke();
       ctx.shadowBlur = 0;
       ctx.restore();
     }
 
     for (const p of this.projectiles) {
-      ctx.fillStyle = p.effects.has("fire") ? "#ff6b33" : "#ffe066";
+      ctx.save();
+      const fire = p.effects.has("fire");
+      ctx.fillStyle = fire ? "#ff6b2d" : "#fff44f";
+      ctx.shadowColor = fire ? "rgba(255, 120, 40, 0.95)" : "rgba(255, 244, 100, 0.85)";
+      ctx.shadowBlur = fire ? 12 : 10;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, 6.5, 0, Math.PI * 2);
       ctx.fill();
+      ctx.strokeStyle = fire ? "#4a1808" : "#2a2810";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.restore();
     }
 
-    ctx.font = "600 14px Segoe UI, PingFang SC, Microsoft YaHei, sans-serif";
+    ctx.font = '700 15px "Silkscreen", "Noto Sans SC", monospace';
     ctx.textAlign = "center";
     for (const ft of this.floatTexts) {
+      const t = ft.text;
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = "rgba(0,0,0,0.82)";
+      ctx.lineWidth = 4;
+      ctx.strokeText(t, ft.x, ft.y);
       ctx.fillStyle = ft.color;
-      ctx.fillText(ft.text, ft.x, ft.y);
+      ctx.fillText(t, ft.x, ft.y);
     }
 
-    ctx.fillStyle = "rgba(255,255,255,0.35)";
-    ctx.font = "12px monospace";
+    ctx.fillStyle = "#c8b8d8";
+    ctx.font = '700 14px "Silkscreen", monospace';
     ctx.textAlign = "right";
-    ctx.fillText(`WAVE ${this.wave}`, CANVAS_W - 16, 28);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "#0c060c";
+    ctx.strokeText(`WAVE ${this.wave}`, CANVAS_W - 14, 30);
+    ctx.fillStyle = "#fff275";
+    ctx.fillText(`WAVE ${this.wave}`, CANVAS_W - 14, 30);
   }
 
   drawKing(ctx) {
@@ -945,14 +984,21 @@ export class Game {
     const cy = (PLAY_TOP + PLAY_BOTTOM) / 2;
     ctx.save();
     ctx.translate(cx, cy);
-    ctx.fillStyle = "#ffd79a";
+    ctx.fillStyle = "#e8b86a";
     ctx.beginPath();
     ctx.ellipse(0, 6, 34, 40, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = "rgba(120,80,40,0.35)";
+    ctx.strokeStyle = "#1a0e08";
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(255,255,255,0.22)";
     ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(-10, -2, 8, Math.PI * 0.9, Math.PI * 2.1);
     ctx.stroke();
     ctx.fillStyle = "#ffe566";
+    ctx.strokeStyle = "#2a1808";
+    ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(-18, -28);
     ctx.lineTo(-10, -12);
@@ -962,6 +1008,12 @@ export class Game {
     ctx.lineTo(14, -36);
     ctx.lineTo(-14, -36);
     ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#1a1210";
+    ctx.beginPath();
+    ctx.arc(-8, 8, 3.5, 0, Math.PI * 2);
+    ctx.arc(8, 8, 3.5, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
@@ -975,18 +1027,16 @@ export class Game {
       this.keyboardBeltFollowBi === belt.id;
     ctx.save();
     ctx.fillStyle = keyFollow
-      ? "rgba(22, 38, 58, 0.62)"
-      : "rgba(18, 28, 48, 0.55)";
+      ? "rgba(55, 40, 72, 0.92)"
+      : "rgba(38, 28, 52, 0.88)";
     ctx.fillRect(x - hw, top, hw * 2, bot - top);
-    ctx.strokeStyle = keyFollow
-      ? "rgba(122, 231, 199, 0.55)"
-      : "rgba(122, 231, 199, 0.35)";
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(x - hw + 0.75, top + 0.75, hw * 2 - 1.5, bot - top - 1.5);
+    ctx.strokeStyle = keyFollow ? "#9ee671" : "#4a3a5c";
+    ctx.lineWidth = keyFollow ? 3 : 2;
+    ctx.strokeRect(x - hw + 1, top + 1, hw * 2 - 2, bot - top - 2);
 
-    ctx.strokeStyle = "rgba(122, 231, 199, 0.45)";
+    ctx.strokeStyle = keyFollow ? "rgba(158,230,113,0.75)" : "rgba(158, 230, 113, 0.35)";
     ctx.lineWidth = 2;
-    ctx.setLineDash([8, 10]);
+    ctx.setLineDash([6, 8]);
     ctx.lineDashOffset = -modPos(belt.scroll);
     ctx.beginPath();
     ctx.moveTo(x, top);
@@ -995,7 +1045,8 @@ export class Game {
     ctx.setLineDash([]);
     ctx.lineDashOffset = 0;
 
-    ctx.strokeStyle = "rgba(255,255,255,0.1)";
+    ctx.strokeStyle = "rgba(0,0,0,0.45)";
+    ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(x, top, hw, 0, Math.PI, true);
     ctx.stroke();
@@ -1003,8 +1054,8 @@ export class Game {
     ctx.arc(x, bot, hw, Math.PI, 0, true);
     ctx.stroke();
 
-    ctx.fillStyle = "rgba(122, 231, 199, 0.18)";
-    ctx.font = "11px sans-serif";
+    ctx.fillStyle = keyFollow ? "rgba(158,230,113,0.35)" : "rgba(158, 230, 113, 0.2)";
+    ctx.font = '700 11px "Silkscreen", monospace';
     ctx.textAlign = "center";
     ctx.fillText("↻", x, top - 6);
     ctx.fillText("↻", x, bot + 16);
@@ -1039,10 +1090,10 @@ export class Game {
       ctx.save();
       const slotLooksEmpty = !slot.pudding || lifted;
       ctx.strokeStyle = slotLooksEmpty
-        ? "rgba(255,255,255,0.06)"
-        : "rgba(255,255,255,0.12)";
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash(slotLooksEmpty ? [4, 4] : []);
+        ? "rgba(100, 90, 120, 0.45)"
+        : "rgba(200, 190, 220, 0.35)";
+      ctx.lineWidth = 2;
+      ctx.setLineDash(slotLooksEmpty ? [5, 5] : []);
       ctx.beginPath();
       ctx.arc(pos.x, pos.y, 14, 0, Math.PI * 2);
       ctx.stroke();
@@ -1050,15 +1101,15 @@ export class Game {
 
       if (slot.pudding && !lifted) {
         if (slot.pudding.isDead) {
-           ctx.globalAlpha = 0.3;
+           ctx.globalAlpha = 0.35;
            this.drawDefenderPudding(ctx, pos.x, pos.y, slot.pudding);
            ctx.globalAlpha = 1.0;
         } else {
            this.drawDefenderPudding(ctx, pos.x, pos.y, slot.pudding);
         }
       } else if (this.phase === "placeStarter") {
-        ctx.fillStyle = "rgba(255,255,255,0.15)";
-        ctx.font = "10px sans-serif";
+        ctx.fillStyle = "rgba(200, 180, 220, 0.35)";
+        ctx.font = '600 10px "Noto Sans SC", sans-serif';
         ctx.textAlign = "center";
         ctx.fillText("空", pos.x, pos.y + 3);
       }
@@ -1069,35 +1120,55 @@ export class Game {
   drawDefenderPudding(ctx, x, y, pud) {
     const hue = pud.hue ?? 200;
     const lvl = pud.level || 1;
-    const rarityColors = { 1: "rgba(0,0,0,0.22)", 2: "#4ade80", 3: "#3b82f6", 4: "#a855f7" };
+    const rarityColors = { 1: "#1a1520", 2: "#5ad85a", 3: "#5ab0ff", 4: "#c86bff" };
 
     if (pud.hitFlash > 0) {
       ctx.shadowColor = "#fff";
-      ctx.shadowBlur = 12;
+      ctx.shadowBlur = 14;
     }
-    ctx.fillStyle = pud.hitFlash > 0 ? "#fff" : `hsl(${hue} 68% 68%)`;
+    const fill = pud.hitFlash > 0 ? "#fff" : `hsl(${hue} 72% 58%)`;
+    ctx.fillStyle = fill;
     ctx.beginPath();
     ctx.arc(x, y - 1, 20, 0, Math.PI * 2);
     ctx.fill();
     ctx.shadowBlur = 0;
-    
+    ctx.strokeStyle = "#120818";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(255,255,255,0.2)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(x - 6, y - 8, 6, Math.PI * 1.1, Math.PI * 2.2);
+    ctx.stroke();
+
     ctx.fillStyle = rarityColors[lvl] || rarityColors[1];
     for (let i = 0; i < lvl; i++) {
        ctx.beginPath();
-       ctx.arc(x - (lvl - 1) * 3.5 + i * 7, y - 16, 2.5, 0, Math.PI * 2);
+       ctx.arc(x - (lvl - 1) * 3.5 + i * 7, y - 16, 3, 0, Math.PI * 2);
        ctx.fill();
+       ctx.strokeStyle = "#0c0810";
+       ctx.lineWidth = 1;
+       ctx.stroke();
     }
 
-    ctx.fillStyle = "rgba(0,0,0,0.22)";
+    ctx.fillStyle = "#0c060c";
     ctx.beginPath();
-    ctx.arc(x - 5, y - 7, 2.5, 0, Math.PI * 2);
-    ctx.arc(x + 7, y - 7, 2.5, 0, Math.PI * 2);
+    ctx.arc(x - 5, y - 6, 2.8, 0, Math.PI * 2);
+    ctx.arc(x + 7, y - 6, 2.8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.arc(x - 5.5, y - 6.5, 0.9, 0, Math.PI * 2);
+    ctx.arc(x + 6.5, y - 6.5, 0.9, 0, Math.PI * 2);
     ctx.fill();
     
     if (pud.hp !== undefined && pud.hp < pud.maxHp) {
-       ctx.fillStyle = "rgba(0,0,0,0.5)";
-       ctx.fillRect(x - 14, y + 14, 28, 4);
-       ctx.fillStyle = "#ff6b8a";
+       ctx.fillStyle = "#0c060c";
+       ctx.fillRect(x - 15, y + 13, 30, 6);
+       ctx.strokeStyle = "#1a1218";
+       ctx.lineWidth = 1;
+       ctx.strokeRect(x - 15, y + 13, 30, 6);
+       ctx.fillStyle = "#9ee671";
        ctx.fillRect(x - 14, y + 14, 28 * Math.max(0, pud.hp / pud.maxHp), 4);
     }
   }
@@ -1107,30 +1178,44 @@ export class Game {
     const r = e.hitRadius || (e.boss ? 34 : 18);
     if (e.hitFlash > 0) {
       ctx.shadowColor = "#fff";
-      ctx.shadowBlur = 16;
+      ctx.shadowBlur = 18;
     }
     const kind = e.enemyKind || "ghost";
+    let fill;
     if (e.boss) {
-      ctx.fillStyle = "rgba(200,160,255,0.95)";
+      fill = "#b070f0";
     } else if (kind === "shifter") {
-      ctx.fillStyle = "rgba(130,230,185,0.78)";
+      fill = "#58d8a8";
     } else if (kind === "ranged") {
-      ctx.fillStyle = "rgba(255,155,178,0.82)";
+      fill = "#ff7ab0";
     } else {
-      ctx.fillStyle = "rgba(200,220,255,0.55)";
+      fill = "#a8c8ff";
     }
+    ctx.fillStyle = fill;
     ctx.beginPath();
     ctx.arc(e.x, y, r, 0, Math.PI * 2);
     ctx.fill();
     ctx.shadowBlur = 0;
-    ctx.strokeStyle = "rgba(255,255,255,0.35)";
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#0c0610";
+    ctx.lineWidth = e.boss ? 4 : 3;
     ctx.stroke();
-    const w = e.boss ? 80 : 44;
-    ctx.fillStyle = "rgba(0,0,0,0.45)";
-    ctx.fillRect(e.x - w / 2, y - r - 14, w, 6);
-    ctx.fillStyle = "#7ae7c7";
-    ctx.fillRect(e.x - w / 2, y - r - 14, w * clamp(e.hp / e.maxHp, 0, 1), 6);
+    ctx.strokeStyle = "rgba(255,255,255,0.18)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(e.x - r * 0.35, y - r * 0.25, r * 0.35, Math.PI * 1, Math.PI * 2.2);
+    ctx.stroke();
+    const w = e.boss ? 82 : 46;
+    const bh = 8;
+    const by = y - r - 16;
+    ctx.fillStyle = "#0c060c";
+    ctx.fillRect(e.x - w / 2 - 1, by - 1, w + 2, bh + 2);
+    ctx.fillStyle = "#1a1218";
+    ctx.fillRect(e.x - w / 2, by, w, bh);
+    ctx.fillStyle = "#9ee671";
+    ctx.fillRect(e.x - w / 2, by, w * clamp(e.hp / e.maxHp, 0, 1), bh);
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(e.x - w / 2, by, w, bh);
   }
 
   rollShopOffers() {
