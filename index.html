@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>布丁回转防线 · 原型</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <h1>布丁回转防线 <span class="tag">Web 原型</span></h1>
+      <p class="hint">从下方回转带<strong>拖进</strong>转盘空位部署布丁 · 中央核心<strong>不可移动</strong> · 数字键 <kbd>1</kbd> <kbd>2</kbd> 使用卡牌</p>
+    </header>
+
+    <div class="hud">
+      <div class="stat"><label>核心生命</label><div class="bar-wrap"><div id="hpFill" class="bar-fill"></div></div><span id="hpText">100 / 100</span></div>
+      <div class="stat"><label>波次</label><span id="waveText">1</span></div>
+      <div class="stat"><label>消灭</label><span id="knockText">0</span></div>
+    </div>
+
+    <div class="canvas-wrap">
+      <canvas id="game" width="960" height="600" aria-label="游戏画布"></canvas>
+    </div>
+
+    <div class="cards">
+      <button type="button" id="btnCard1" class="card-btn" title="快捷键 1">
+        <strong>加宽取餐窗</strong>
+        <span class="sub">8 秒内窗口 +40%</span>
+        <span id="cd1" class="cd"></span>
+      </button>
+      <button type="button" id="btnCard2" class="card-btn" title="快捷键 2">
+        <strong>传送带减速</strong>
+        <span class="sub">6 秒内带速 -45%</span>
+        <span id="cd2" class="cd"></span>
+      </button>
+    </div>
+
+    <footer class="footer">
+      <p>原型概念：寿司郎式<strong>回转供给</strong> + 转盘<strong>布阵位</strong> + 布丁<strong>击退互动</strong>（站桩核心）。部署到 GitHub Pages 后见 README 开启方式。</p>
+    </footer>
+  </div>
+  <script src="js/game.js"></script>
+</body>
+</html>
