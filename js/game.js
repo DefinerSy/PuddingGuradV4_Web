@@ -1,7 +1,16 @@
 import { buildWaveTable } from "./waves.js";
+import {
+  aggregateTraitCounts,
+  computeSynergyMultipliers,
+  formatPuddingTraitsLine,
+  formatSynergySummary,
+  makePudding,
+  PUDDING_TYPES,
+} from "./puddings.js";
 
 const LANES = 5;
 const BELT_COUNT = 3;
+const SLOTS_PER_BELT = 5;
 const CANVAS_W = 1200;
 const CANVAS_H = 640;
 const PLAY_TOP = 72;
@@ -12,9 +21,11 @@ const KING_X2 = 108;
 const BELT_X0 = 120;
 const BELT_X1 = CANVAS_W - 40;
 const SPAWN_X = CANVAS_W - 20;
-/** 纵向传送带中心 X（三条平行环轨） */
 const BELT_CENTERS_X = [340, 600, 860];
-const BELT_HIT_HW = 32;
+const BELT_HIT_HW = 34;
+const PUDDING_HIT_R = 28;
+const SLOT_PICK_R = 44;
+const MAX_PLACE_START_DIST = 120;
 
 function laneCenterY(lane) {
   const h = PLAY_H / LANES;
@@ -42,14 +53,9 @@ function yToLane(y) {
   return clamp(Math.floor((y - PLAY_TOP) / h), 0, LANES - 1);
 }
 
-function makeDefender(alongPx) {
-  return {
-    along: typeof alongPx === "number" ? alongPx : PLAY_H * 0.42,
-    damage: 12,
-    attackCd: 0,
-    attackInterval: 0.55,
-    range: 720,
-  };
+/** 槽位在环上的固定弧长位置（中心） */
+function slotAlong(i) {
+  return ((i + 0.5) * PLAY_H) / SLOTS_PER_BELT;
 }
 
 export class Game {
@@ -68,7 +74,7 @@ export class Game {
     this.kingHp = 100;
     this.global = { dmg: 1, asp: 1, range: 1 };
     this.starterPlaced = false;
-    this.draggingBelt = null;
+    this.drag = null;
     this.dragLastMy = 0;
     this.enemies = [];
     this.spawnQueue = 0;
@@ -82,12 +88,15 @@ export class Game {
 
     this.belts = [];
     for (let i = 0; i < BELT_COUNT; i++) {
+      const slots = [];
+      for (let s = 0; s < SLOTS_PER_BELT; s++) {
+        slots.push({ pudding: null });
+      }
       this.belts.push({
         id: i,
         x: BELT_CENTERS_X[i],
-        /** 环轨卷动量（像素）：上下拖动改变，布丁屏幕位置 = along + scroll 对环长取模 */
-        scroll: i * 40,
-        defender: null,
+        scroll: i * 36,
+        slots,
       });
     }
   }
@@ -95,33 +104,69 @@ export class Game {
   start() {
     this.reset();
     this.phase = "placeStarter";
-    this.gold = 8;
+    this.gold = 10;
   }
 
-  /** 布丁在屏幕上的位置与当前所在攻击路 */
-  getDefenderPos(belt) {
-    const d = belt.defender;
-    if (!d) return null;
-    const y = PLAY_TOP + modPos(d.along + belt.scroll);
+  slotWorldPos(belt, slotIndex) {
+    const along = slotAlong(slotIndex);
+    const y = PLAY_TOP + modPos(along + belt.scroll);
     const lane = yToLane(y);
     return { x: belt.x, y, lane };
   }
 
-  /** 点击某条传送带放置开局布丁；mx,my 用于把布丁摆在环上的对应高度 */
-  placeStarterOnBelt(beltIndex, mx, my) {
-    const b = this.belts[beltIndex];
-    if (!b || b.defender) return false;
-    const along = this.pointerToAlong(b, mx, my);
-    b.defender = makeDefender(along);
+  countPuddings() {
+    let n = 0;
+    for (const b of this.belts) {
+      for (const s of b.slots) {
+        if (s.pudding) n++;
+      }
+    }
+    return n;
+  }
+
+  hasEmptySlot() {
+    return this.belts.some((b) => b.slots.some((s) => !s.pudding));
+  }
+
+  firstEmptySlot() {
+    for (let bi = 0; bi < this.belts.length; bi++) {
+      for (let si = 0; si < this.belts[bi].slots.length; si++) {
+        if (!this.belts[bi].slots[si].pudding) return { bi, si };
+      }
+    }
+    return null;
+  }
+
+  placePuddingInFirstEmpty(typeId) {
+    const pos = this.firstEmptySlot();
+    if (!pos) return false;
+    this.belts[pos.bi].slots[pos.si].pudding = makePudding(typeId);
+    return true;
+  }
+
+  /** 开局：在离点击最近的空槽放一只原味布丁 */
+  placeStarter(mx, my) {
+    let best = null;
+    let bestD = Infinity;
+    for (let bi = 0; bi < this.belts.length; bi++) {
+      const belt = this.belts[bi];
+      if (Math.abs(mx - belt.x) > BELT_HIT_HW + 20) continue;
+      for (let si = 0; si < belt.slots.length; si++) {
+        if (belt.slots[si].pudding) continue;
+        const p = this.slotWorldPos(belt, si);
+        const d = dist(mx, my, p.x, p.y);
+        if (d < bestD) {
+          bestD = d;
+          best = { bi, si };
+        }
+      }
+    }
+    if (!best || bestD > MAX_PLACE_START_DIST) return false;
+    this.belts[best.bi].slots[best.si].pudding = makePudding("vanilla");
     this.starterPlaced = true;
     this.phase = "combat";
     this.beginWave();
     return true;
-  }
-
-  /** 屏幕坐标 → 环上 along（0..PLAY_H） */
-  pointerToAlong(belt, mx, my) {
-    return modPos(my - PLAY_TOP - belt.scroll);
   }
 
   beginWave() {
@@ -132,18 +177,60 @@ export class Game {
     this.spawnInterval = cfg.spawnInterval;
     this.shopOpened = false;
     this.enemies = [];
+
+    const counts = aggregateTraitCounts(this.belts);
+    const syn = computeSynergyMultipliers(counts);
+    if (syn.kingHealPerWave > 0) {
+      this.kingHp = Math.min(this.kingMaxHp, this.kingHp + syn.kingHealPerWave);
+    }
   }
 
-  pickBeltAt(mx, my) {
+  pickPuddingAt(mx, my) {
+    let best = null;
+    let bestD = Infinity;
+    for (let bi = 0; bi < this.belts.length; bi++) {
+      const belt = this.belts[bi];
+      for (let si = 0; si < belt.slots.length; si++) {
+        if (!belt.slots[si].pudding) continue;
+        const p = this.slotWorldPos(belt, si);
+        const d = dist(mx, my, p.x, p.y);
+        if (d <= PUDDING_HIT_R && d < bestD) {
+          bestD = d;
+          best = { bi, si };
+        }
+      }
+    }
+    return best;
+  }
+
+  pickSlotAt(mx, my) {
+    let best = null;
+    let bestD = Infinity;
+    for (let bi = 0; bi < this.belts.length; bi++) {
+      const belt = this.belts[bi];
+      if (Math.abs(mx - belt.x) > BELT_HIT_HW + 24) continue;
+      for (let si = 0; si < belt.slots.length; si++) {
+        const p = this.slotWorldPos(belt, si);
+        const d = dist(mx, my, p.x, p.y);
+        if (d < bestD && d <= SLOT_PICK_R) {
+          bestD = d;
+          best = { bi, si };
+        }
+      }
+    }
+    return best;
+  }
+
+  hitBeltColumn(mx, my) {
     if (my < PLAY_TOP || my > PLAY_BOTTOM) return null;
     let best = null;
     let bestDx = Infinity;
-    for (let i = 0; i < this.belts.length; i++) {
-      const belt = this.belts[i];
+    for (let bi = 0; bi < this.belts.length; bi++) {
+      const belt = this.belts[bi];
       const dx = Math.abs(mx - belt.x);
       if (dx <= BELT_HIT_HW && dx < bestDx) {
         bestDx = dx;
-        best = i;
+        best = bi;
       }
     }
     return best;
@@ -151,34 +238,52 @@ export class Game {
 
   onPointerDown(mx, my) {
     if (this.phase === "placeStarter") {
-      const idx = this.pickBeltAt(mx, my);
-      if (idx !== null) return { type: "place", belt: idx };
-      return null;
+      return { type: "place" };
     }
     if (this.phase !== "combat") return null;
-    const idx = this.pickBeltAt(mx, my);
-    if (idx !== null) {
-      this.draggingBelt = idx;
+
+    const pud = this.pickPuddingAt(mx, my);
+    if (pud) {
+      this.drag = { kind: "pudding", bi: pud.bi, si: pud.si };
+      return { type: "pudding" };
+    }
+
+    const col = this.hitBeltColumn(mx, my);
+    if (col !== null) {
+      this.drag = { kind: "belt", bi: col };
       this.dragLastMy = my;
-      return { type: "drag" };
+      return { type: "belt" };
     }
     return null;
   }
 
   onPointerMove(mx, my) {
-    if (this.draggingBelt === null) return;
-    const belt = this.belts[this.draggingBelt];
-    const dy = my - this.dragLastMy;
-    this.dragLastMy = my;
-    belt.scroll += dy;
+    if (!this.drag) return;
+    if (this.drag.kind === "belt") {
+      const belt = this.belts[this.drag.bi];
+      const dy = my - this.dragLastMy;
+      this.dragLastMy = my;
+      belt.scroll += dy;
+    }
   }
 
-  onPointerUp() {
-    if (this.draggingBelt !== null) {
-      const belt = this.belts[this.draggingBelt];
+  onPointerUp(mx, my) {
+    if (!this.drag) return;
+
+    if (this.drag.kind === "belt") {
+      const belt = this.belts[this.drag.bi];
       belt.scroll = modPos(belt.scroll);
+    } else if (this.drag.kind === "pudding") {
+      const from = { bi: this.drag.bi, si: this.drag.si };
+      const to = this.pickSlotAt(mx, my);
+      if (to && (from.bi !== to.bi || from.si !== to.si)) {
+        const a = this.belts[from.bi].slots[from.si].pudding;
+        const b = this.belts[to.bi].slots[to.si].pudding;
+        this.belts[from.bi].slots[from.si].pudding = b;
+        this.belts[to.bi].slots[to.si].pudding = a;
+      }
     }
-    this.draggingBelt = null;
+    this.drag = null;
   }
 
   update(dt) {
@@ -191,7 +296,6 @@ export class Game {
       this.phase = "ended";
       return;
     }
-
     if (this.victory) {
       this.phase = "ended";
       return;
@@ -210,9 +314,7 @@ export class Game {
 
     const waveDone = this.spawnQueue <= 0 && this.enemies.length === 0;
     if (waveDone && !this.shopOpened) {
-      if (this.wave === 20) {
-        return;
-      }
+      if (this.wave === 20) return;
       this.shopOpened = true;
       this.gold += this.waveTable[this.wave].clearGold;
       this.rollShopOffers();
@@ -221,9 +323,7 @@ export class Game {
   }
 
   updateSpawns(dt) {
-    if (this.spawnQueue <= 0) {
-      return;
-    }
+    if (this.spawnQueue <= 0) return;
     this.spawnTimer -= dt;
     if (this.spawnTimer > 0) return;
     const cfg = this.waveTable[this.wave];
@@ -261,16 +361,12 @@ export class Game {
       if (e.x <= reach) {
         this.kingHp -= e.damageToKing;
         this.addFloatText(KING_X2, laneCenterY(e.lane), `-${e.damageToKing}`, "#ff6b8a");
-        if (e.boss) {
-          this.gameOver = true;
-        }
+        if (e.boss) this.gameOver = true;
         continue;
       }
       if (e.hp <= 0) {
         this.gold += e.bounty;
-        if (e.boss) {
-          this.victory = true;
-        }
+        if (e.boss) this.victory = true;
         continue;
       }
       remain.push(e);
@@ -279,38 +375,46 @@ export class Game {
   }
 
   updateDefenders(dt) {
+    const counts = aggregateTraitCounts(this.belts);
+    const syn = computeSynergyMultipliers(counts);
+
     for (const belt of this.belts) {
-      const d = belt.defender;
-      if (!d) continue;
-      d.attackCd -= dt;
-      const pos = this.getDefenderPos(belt);
-      if (!pos) continue;
-      const { x: ax, y: ay, lane } = pos;
-      const range = d.range * this.global.range;
-      let target = null;
-      let best = Infinity;
-      for (const e of this.enemies) {
-        if (e.lane !== lane) continue;
-        const dd = dist(ax, ay, e.x, laneCenterY(e.lane));
-        if (dd <= range && e.x < best) {
-          best = e.x;
-          target = e;
+      for (let si = 0; si < belt.slots.length; si++) {
+        const slot = belt.slots[si];
+        const pud = slot.pudding;
+        if (!pud) continue;
+
+        pud.attackCd -= dt;
+        const pos = this.slotWorldPos(belt, si);
+        const range = pud.baseRange * this.global.range * syn.rangeMul;
+        const lane = pos.lane;
+
+        let target = null;
+        let best = Infinity;
+        for (const e of this.enemies) {
+          if (e.lane !== lane) continue;
+          const dd = dist(pos.x, pos.y, e.x, laneCenterY(e.lane));
+          if (dd <= range && e.x < best) {
+            best = e.x;
+            target = e;
+          }
         }
-      }
-      const interval = d.attackInterval / this.global.asp;
-      if (target && d.attackCd <= 0) {
-        const dmg = d.damage * this.global.dmg;
-        target.hp -= dmg;
-        target.hitFlash = 0.12;
-        d.attackCd = interval;
-        this.projectiles.push({
-          x1: ax,
-          y1: ay,
-          x2: target.x,
-          y2: laneCenterY(target.lane),
-          t: 0,
-          dur: 0.08,
-        });
+
+        const interval = (pud.baseInterval / syn.aspMul) / this.global.asp;
+        if (target && pud.attackCd <= 0) {
+          const finalDmg = pud.baseDamage * this.global.dmg * syn.damageMul;
+          target.hp -= finalDmg;
+          target.hitFlash = 0.12;
+          pud.attackCd = interval;
+          this.projectiles.push({
+            x1: pos.x,
+            y1: pos.y,
+            x2: target.x,
+            y2: laneCenterY(target.lane),
+            t: 0,
+            dur: 0.08,
+          });
+        }
       }
     }
   }
@@ -373,7 +477,7 @@ export class Game {
     }
 
     for (const belt of this.belts) {
-      this.drawBeltPudding(ctx, belt);
+      this.drawBeltSlotsAndPuddings(ctx, belt);
     }
 
     for (const p of this.projectiles) {
@@ -382,7 +486,7 @@ export class Game {
       const y = p.y1 + (p.y2 - p.y1) * k;
       ctx.fillStyle = "#ffe066";
       ctx.beginPath();
-      ctx.arc(x, y, 6, 0, Math.PI * 2);
+      ctx.arc(x, y, 5, 0, Math.PI * 2);
       ctx.fill();
     }
 
@@ -427,7 +531,7 @@ export class Game {
 
   drawVerticalBeltTrack(ctx, belt) {
     const x = belt.x;
-    const hw = 24;
+    const hw = 26;
     const top = PLAY_TOP;
     const bot = PLAY_BOTTOM;
     ctx.save();
@@ -437,11 +541,10 @@ export class Game {
     ctx.lineWidth = 1.5;
     ctx.strokeRect(x - hw + 0.75, top + 0.75, hw * 2 - 1.5, bot - top - 1.5);
 
-    ctx.strokeStyle = "rgba(122, 231, 199, 0.5)";
+    ctx.strokeStyle = "rgba(122, 231, 199, 0.45)";
     ctx.lineWidth = 2;
     ctx.setLineDash([8, 10]);
-    const dashOff = modPos(belt.scroll * 1.2);
-    ctx.lineDashOffset = -dashOff;
+    ctx.lineDashOffset = -modPos(belt.scroll * 1.15);
     ctx.beginPath();
     ctx.moveTo(x, top);
     ctx.lineTo(x, bot);
@@ -449,7 +552,7 @@ export class Game {
     ctx.setLineDash([]);
     ctx.lineDashOffset = 0;
 
-    ctx.strokeStyle = "rgba(255,255,255,0.12)";
+    ctx.strokeStyle = "rgba(255,255,255,0.1)";
     ctx.beginPath();
     ctx.arc(x, top, hw, 0, Math.PI, true);
     ctx.stroke();
@@ -457,7 +560,7 @@ export class Game {
     ctx.arc(x, bot, hw, Math.PI, 0, true);
     ctx.stroke();
 
-    ctx.fillStyle = "rgba(122, 231, 199, 0.2)";
+    ctx.fillStyle = "rgba(122, 231, 199, 0.18)";
     ctx.font = "11px sans-serif";
     ctx.textAlign = "center";
     ctx.fillText("↻", x, top - 6);
@@ -465,30 +568,41 @@ export class Game {
     ctx.restore();
   }
 
-  drawBeltPudding(ctx, belt) {
-    const pos = this.getDefenderPos(belt);
-    ctx.save();
-    if (belt.defender && pos) {
-      this.drawDefenderPudding(ctx, pos.x, pos.y, belt.id);
-    } else if (this.phase === "placeStarter") {
-      ctx.fillStyle = "rgba(255,255,255,0.22)";
-      ctx.font = "12px sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText("点击放置", belt.x, PLAY_TOP + PLAY_H * 0.5);
+  drawBeltSlotsAndPuddings(ctx, belt) {
+    for (let si = 0; si < belt.slots.length; si++) {
+      const pos = this.slotWorldPos(belt, si);
+      const slot = belt.slots[si];
+      ctx.save();
+      ctx.strokeStyle = slot.pudding ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.06)";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash(slot.pudding ? [] : [4, 4]);
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, 14, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      if (slot.pudding) {
+        this.drawDefenderPudding(ctx, pos.x, pos.y, slot.pudding);
+      } else if (this.phase === "placeStarter") {
+        ctx.fillStyle = "rgba(255,255,255,0.15)";
+        ctx.font = "10px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("空", pos.x, pos.y + 3);
+      }
+      ctx.restore();
     }
-    ctx.restore();
   }
 
-  drawDefenderPudding(ctx, x, y, beltId) {
-    const hue = [200, 140, 280][beltId % 3];
-    ctx.fillStyle = `hsl(${hue} 70% 72%)`;
+  drawDefenderPudding(ctx, x, y, pud) {
+    const hue = pud.hue ?? 200;
+    ctx.fillStyle = `hsl(${hue} 68% 68%)`;
     ctx.beginPath();
-    ctx.arc(x, y - 2, 22, 0, Math.PI * 2);
+    ctx.arc(x, y - 1, 20, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = "rgba(0,0,0,0.2)";
+    ctx.fillStyle = "rgba(0,0,0,0.22)";
     ctx.beginPath();
-    ctx.arc(x - 6, y - 8, 3, 0, Math.PI * 2);
-    ctx.arc(x + 8, y - 8, 3, 0, Math.PI * 2);
+    ctx.arc(x - 5, y - 7, 2.5, 0, Math.PI * 2);
+    ctx.arc(x + 7, y - 7, 2.5, 0, Math.PI * 2);
     ctx.fill();
   }
 
@@ -516,27 +630,27 @@ export class Game {
 
   rollShopOffers() {
     const pool = [];
-    const emptyBelts = this.belts.filter((b) => !b.defender).length;
-    if (emptyBelts > 0) {
+    const typeIds = Object.keys(PUDDING_TYPES).filter((k) => k !== "vanilla");
+
+    for (let k = 0; k < 3; k++) {
+      const tid = typeIds[Math.floor(Math.random() * typeIds.length)];
+      const def = PUDDING_TYPES[tid];
       pool.push({
-        id: "pudding",
-        title: "布丁守卫",
-        desc: "在一条空的纵向传送带上摆放新的布丁。",
-        price: 22 + this.wave * 2,
-        canBuy: () => this.belts.some((b) => !b.defender),
-        buy: () => {
-          const slot = this.belts.find((b) => !b.defender);
-          if (slot) {
-            slot.defender = makeDefender(PLAY_H * (0.12 + Math.random() * 0.76));
-          }
-        },
+        id: `shop_pud_${k}_${tid}`,
+        title: def.name,
+        desc: `${formatPuddingTraitsLine({ traits: def.traits })}。需空槽位。`,
+        price: 18 + this.wave * 2 + Math.floor(Math.random() * 6),
+        puddingType: tid,
+        canBuy: () => this.hasEmptySlot(),
+        buy: () => this.placePuddingInFirstEmpty(tid),
       });
     }
+
     pool.push(
       {
         id: "dmg",
         title: "焦糖涂层",
-        desc: "所有布丁伤害 +12%。",
+        desc: "全局伤害 +12%。",
         price: 14,
         canBuy: () => true,
         buy: () => {
@@ -546,7 +660,7 @@ export class Game {
       {
         id: "asp",
         title: "薄荷糖浆",
-        desc: "攻击速度 +10%。",
+        desc: "全局攻速 +10%。",
         price: 14,
         canBuy: () => true,
         buy: () => {
@@ -556,7 +670,7 @@ export class Game {
       {
         id: "range",
         title: "望远勺子",
-        desc: "射程 +8%。",
+        desc: "全局射程 +8%。",
         price: 12,
         canBuy: () => true,
         buy: () => {
@@ -566,7 +680,7 @@ export class Game {
       {
         id: "heal",
         title: "蜂蜜淋面",
-        desc: "国王布丁恢复 25 生命。",
+        desc: "国王立刻恢复 25 生命。",
         price: 10,
         canBuy: () => this.kingHp < this.kingMaxHp,
         buy: () => {
@@ -585,10 +699,12 @@ export class Game {
         },
       },
     );
+
     const picks = [];
     const used = new Set();
-    while (picks.length < 4 && used.size < pool.length) {
-      const c = pool[Math.floor(Math.random() * pool.length)];
+    const shuffled = [...pool].sort(() => Math.random() - 0.5);
+    for (const c of shuffled) {
+      if (picks.length >= 4) break;
       if (!used.has(c.id)) {
         used.add(c.id);
         picks.push({ ...c });
@@ -604,7 +720,7 @@ export class Game {
     if (!o.canBuy()) return false;
     this.gold -= o.price;
     o.buy();
-    o.price = Math.floor(o.price * 1.25);
+    o.price = Math.floor(o.price * 1.22);
     return true;
   }
 
@@ -624,6 +740,7 @@ export class Game {
   }
 
   getHud() {
+    const counts = aggregateTraitCounts(this.belts);
     return {
       wave: this.wave,
       maxWave: 20,
@@ -633,6 +750,8 @@ export class Game {
       phase: this.phase,
       victory: this.victory,
       gameOver: this.gameOver,
+      synergyLine: formatSynergySummary(counts),
+      puddingCount: this.countPuddings(),
     };
   }
 }

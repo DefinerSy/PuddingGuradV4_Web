@@ -89,10 +89,12 @@ function syncHud() {
   kingBar.style.transform = `scaleX(${ratio})`;
 
   if (h.phase === "placeStarter") {
-    hudHint.textContent = "在纵向传送带上点击，布丁会出现在你点的高度。";
-  } else if (h.phase === "combat") {
     hudHint.textContent =
-      "在传送带区域上下拖动可卷动环轨；布丁到底会从上方瞬移接上。布丁所在高度决定攻击哪一路。";
+      "点击任意「空槽」圆位放置第一只布丁；每条环轨有多个固定槽，之后可拖布丁换位。";
+  } else if (h.phase === "combat") {
+    const base =
+      "空白处上下拖环轨：整根带子一起卷动，槽位随之循环。\n拖住布丁拖到另一槽位可换位（含跨轨）。布丁高度决定打哪一路。";
+    hudHint.textContent = h.synergyLine ? `${base}\n${h.synergyLine}` : base;
   } else if (h.phase === "shop") {
     hudHint.textContent = "在商店购买新布丁或强化，然后进入下一波。";
   } else if (h.phase === "menu") {
@@ -161,7 +163,8 @@ canvas.addEventListener("pointermove", (ev) => {
 });
 
 canvas.addEventListener("pointerup", (ev) => {
-  game.onPointerUp();
+  const [mx, my] = canvasPoint(ev.clientX, ev.clientY);
+  game.onPointerUp(mx, my);
   try {
     canvas.releasePointerCapture(ev.pointerId);
   } catch {
@@ -169,8 +172,9 @@ canvas.addEventListener("pointerup", (ev) => {
   }
 });
 
-canvas.addEventListener("pointercancel", () => {
-  game.onPointerUp();
+canvas.addEventListener("pointercancel", (ev) => {
+  const [mx, my] = canvasPoint(ev.clientX, ev.clientY);
+  game.onPointerUp(mx, my);
 });
 
 function frame(ts) {

@@ -55,6 +55,7 @@ body {
   min-width: 200px;
   font-size: 13px;
   color: var(--muted);
+  white-space: pre-line;
 }
 
 .king-hp {
