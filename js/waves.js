@@ -1,3 +1,25 @@
+/** 非 BOSS：按波次随机敌人类型 */
+export function rollEnemyKindForWave(wave) {
+  const r = Math.random();
+  if (wave <= 3) return "ghost";
+
+  if (wave <= 7) {
+    if (r < 0.17) return "shifter";
+    if (r < 0.28) return "ranged";
+    return "ghost";
+  }
+
+  if (wave <= 12) {
+    if (r < 0.21) return "shifter";
+    if (r < 0.36) return "ranged";
+    return "ghost";
+  }
+
+  if (r < 0.26) return "shifter";
+  if (r < 0.48) return "ranged";
+  return "ghost";
+}
+
 /** 每波固定配置：幽灵数量、生成间隔、属性与通关奖励（可后续改为数据表） */
 export function buildWaveTable() {
   const table = [];

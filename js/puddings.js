@@ -110,19 +110,65 @@ export const PUDDING_TYPES = {
     baseRange: 660,
     hue: 200,
   },
+  nut: {
+    name: "坚果盾卫",
+    traits: ["thick"],
+    baseDamage: 0,
+    baseInterval: 999,
+    baseRange: 0,
+    baseHp: 400,
+    hue: 30,
+    mechanic: "defender"
+  },
+  chili: {
+    name: "烈焰辣椒",
+    traits: ["sharp"],
+    baseDamage: 0,
+    baseInterval: 999,
+    baseRange: 0,
+    hue: 0,
+    mechanic: "buff_fire"
+  },
+  grape: {
+    name: "葡萄连弹",
+    traits: ["rapid"],
+    baseDamage: 6,
+    baseInterval: 0.65,
+    baseRange: 600,
+    hue: 280,
+    attackType: "split"
+  },
+  bomb: {
+    name: "爆弹布丁",
+    traits: ["thick", "sharp"],
+    baseDamage: 15,
+    baseInterval: 1.2,
+    baseRange: 600,
+    hue: 10,
+    attackType: "aoe"
+  }
 };
 
-export function makePudding(typeId) {
+export function makePudding(typeId, level = 1) {
   const def = PUDDING_TYPES[typeId];
-  if (!def) return makePudding("vanilla");
+  if (!def) return makePudding("vanilla", level);
+  const hpMultiplier = Math.pow(1.8, level - 1);
+  const dmgMultiplier = Math.pow(1.8, level - 1);
+  const hp = (def.baseHp || 100) * hpMultiplier;
   return {
     typeId,
+    level,
     traits: [...def.traits],
-    baseDamage: def.baseDamage,
+    baseDamage: def.baseDamage * dmgMultiplier,
     baseInterval: def.baseInterval,
     baseRange: def.baseRange,
+    maxHp: hp,
+    hp: hp,
     hue: def.hue,
+    mechanic: def.mechanic || null,
+    attackType: def.attackType || "normal",
     attackCd: 0,
+    hitFlash: 0,
   };
 }
 
@@ -140,9 +186,10 @@ export function aggregateTraitCounts(belts) {
   const counts = {};
   for (const belt of belts) {
     for (const slot of belt.slots) {
-      if (!slot.pudding) continue;
+      if (!slot.pudding || slot.pudding.isDead) continue;
+      const lvl = slot.pudding.level || 1;
       for (const t of slot.pudding.traits) {
-        counts[t] = (counts[t] || 0) + 1;
+        counts[t] = (counts[t] || 0) + lvl;
       }
     }
   }

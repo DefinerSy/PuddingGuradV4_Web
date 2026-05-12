@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
+  <noscript>本游戏需要启用 JavaScript，且需通过本地 HTTP 访问（不要直接双击用 file:// 打开，否则模块无法加载）。</noscript>
   <div id="app">
     <header class="hud">
       <div class="hud-block">
@@ -25,39 +26,50 @@
       <div class="hud-block hint" id="hud-hint">多槽环轨 · 拖布丁换位 · 词条叠层</div>
     </header>
 
-    <main class="stage">
-      <canvas id="game" width="1200" height="640" aria-label="游戏画面"></canvas>
+    <div class="stage-host">
+      <main class="stage">
+        <canvas id="game" width="1200" height="640" aria-label="游戏画面"></canvas>
+
+        <div id="overlay-place" class="overlay panel hidden">
+          <h2>放置初始布丁</h2>
+          <p>在任意环轨上的<strong>空槽位</strong>点击放置第一只布丁；多槽可换位，商店可买不同词条的布丁。</p>
+          <button type="button" id="btn-place-cancel" class="ghost">稍后（仍须放置）</button>
+        </div>
+
+        <div id="overlay-shop" class="overlay panel hidden wide">
+          <h2>商店 <span id="shop-wave-label"></span></h2>
+          <p class="shop-meta">金币 <strong id="shop-gold">0</strong> · 刷新 <span id="shop-reroll-cost">5</span> 金</p>
+          <div id="shop-cards" class="shop-cards"></div>
+          <div class="shop-actions">
+            <button type="button" id="btn-reroll">刷新商品</button>
+            <button type="button" id="btn-next-wave">进入下一波</button>
+          </div>
+        </div>
+
+        <div id="overlay-end" class="overlay panel hidden">
+          <h2 id="end-title">游戏结束</h2>
+          <p id="end-desc"></p>
+          <button type="button" id="btn-restart">再来一局</button>
+        </div>
+      </main>
 
       <div id="overlay-menu" class="overlay panel">
         <h1>国王布丁守卫战</h1>
         <p class="tagline">纵向环轨 · 多槽布丁 · 词条叠层 · 五路幽灵 · 第 20 波 BOSS</p>
-        <button type="button" id="btn-start">开始游戏</button>
+        <button
+          type="button"
+          id="btn-start"
+          onclick="(function(){try{if(typeof PuddingGuardStart==='function')PuddingGuardStart();}catch(e){console.error(e);}})();"
+        >
+          开始游戏
+        </button>
         <p class="small">开局一只原味布丁；同名词条份数越多协同越强（类似《土豆兄弟》叠层）。</p>
       </div>
+    </div>
 
-      <div id="overlay-place" class="overlay panel hidden">
-        <h2>放置初始布丁</h2>
-        <p>在任意环轨上的<strong>空槽位</strong>点击放置第一只布丁；多槽可换位，商店可买不同词条的布丁。</p>
-        <button type="button" id="btn-place-cancel" class="ghost">稍后（仍须放置）</button>
-      </div>
-
-      <div id="overlay-shop" class="overlay panel hidden wide">
-        <h2>商店 <span id="shop-wave-label"></span></h2>
-        <p class="shop-meta">金币 <strong id="shop-gold">0</strong> · 刷新 <span id="shop-reroll-cost">5</span> 金</p>
-        <div id="shop-cards" class="shop-cards"></div>
-        <div class="shop-actions">
-          <button type="button" id="btn-reroll">刷新商品</button>
-          <button type="button" id="btn-next-wave">进入下一波</button>
-        </div>
-      </div>
-
-      <div id="overlay-end" class="overlay panel hidden">
-        <h2 id="end-title">游戏结束</h2>
-        <p id="end-desc"></p>
-        <button type="button" id="btn-restart">再来一局</button>
-      </div>
-    </main>
   </div>
+
+  <div id="tooltip" class="tooltip hidden"></div>
   <script type="module" src="js/main.js"></script>
 </body>
 </html>

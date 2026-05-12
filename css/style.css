@@ -79,7 +79,7 @@ body {
   transform: scaleX(1);
 }
 
-.stage {
+.stage-host {
   position: relative;
   border-radius: 14px;
   overflow: hidden;
@@ -87,17 +87,41 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
+.stage {
+  position: relative;
+}
+
+/* 移除 :has hack：主菜单已移出 main.stage */
+
 #game {
   display: block;
   width: 100%;
   height: auto;
   background: #12162a;
   cursor: crosshair;
+  position: relative;
+}
+
+/* 主菜单叠在舞台区整块之上（overlay 为 .stage-host 子元素），z-index 盖过 main 内的 canvas */
+.stage-host > #overlay-menu.overlay {
+  z-index: 1200;
+  pointer-events: auto;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* 保证按钮在本层里最顶上一层 */
+#btn-start {
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
+  cursor: pointer;
 }
 
 .overlay {
   position: absolute;
   inset: 0;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -228,4 +252,35 @@ button.ghost {
 #btn-next-wave {
   background: linear-gradient(180deg, #7ae7c7, #3bbf9a);
   color: #061a14;
+}
+
+.tooltip {
+  position: absolute;
+  pointer-events: none !important;
+  background: rgba(10, 15, 30, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 8px 12px;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 13px;
+  z-index: 1000;
+  max-width: 240px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  transform: translate(15px, 15px);
+  white-space: pre-wrap;
+}
+
+#tooltip.tooltip.hidden {
+  display: none !important;
+}
+
+.tooltip h4 {
+  margin: 0 0 6px 0;
+  color: #ffe066;
+  font-size: 14px;
+}
+
+.tooltip p {
+  margin: 2px 0;
+  color: #ccc;
 }
