@@ -13,14 +13,17 @@ python3 -m http.server 8080
 
 ## GitHub Pages 部署说明
 
-1. 将 `main` 合并进仓库（或确保 `main` 已包含本原型与 `.github/workflows/deploy-pages.yml`）。
-2. Actions  workflow **Deploy GitHub Pages** 会在推送 `main` 时把 `index.html`、`css/`、`js/` 同步到 **`gh-pages`** 分支。
-3. 在 GitHub 仓库：**Settings → Pages → Build and deployment → Source**：选择 **Deploy from a branch**，Branch 选 **`gh-pages`**，文件夹选 **`/(root)`**，保存。
-4. 数分钟后可访问（用户名与仓库名以你的为准）：
+工作流使用 GitHub 官方 **`upload-pages-artifact` + `deploy-pages`**，与 Settings 里的 **Source: GitHub Actions** 一致。
+
+1. 推送 `main` 后会自动运行 **Deploy GitHub Pages**。
+2. 在仓库 **Settings → Pages → Build and deployment**：
+   - **Source** 请选择 **GitHub Actions**（不要再用「从分支部署」指向 `gh-pages`，除非你刻意改回旧方式）。
+3. 首次运行若出现 **Environment `github-pages` 等待审批**，请到 **Actions** 里打开该次运行，点击 **Review deployments → Approve**（仅首次或策略变更时可能出现）。
+4. 部署成功后，同一页会显示站点地址，一般为：
 
    `https://definersy.github.io/PuddingGuradV4_Web/`
 
-若 Pages 未出现，请到 **Actions** 查看部署是否成功；首次使用需在 **Settings → Actions → General** 确认 Workflow 权限允许写入 `contents`。
+若仍无站点，请到 **Actions** 查看 **Deploy GitHub Pages** 是否成功，并确认 **Settings → Actions → General → Workflow permissions** 为 **Read and write permissions**（以便 `GITHUB_TOKEN` 具备 `pages: write` 与 `id-token`）。
 
 ## 操作
 
