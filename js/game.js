@@ -1556,15 +1556,14 @@ export class Game {
       },
     );
 
+    /** 有放回随机 4 格：刷新后可出现重复商品；单格购买后 splice 移除该按钮即可 */
     const picks = [];
-    const used = new Set();
-    const shuffled = [...pool].sort(() => Math.random() - 0.5);
-    for (const c of shuffled) {
-      if (picks.length >= 4) break;
-      if (!used.has(c.id)) {
-        used.add(c.id);
-        picks.push({ ...c });
-      }
+    for (let slot = 0; slot < 4; slot++) {
+      const src = pool[Math.floor(Math.random() * pool.length)];
+      picks.push({
+        ...src,
+        id: `offer_${slot}_${Math.random().toString(36).slice(2, 11)}`,
+      });
     }
     this.shopOffers = picks;
   }
