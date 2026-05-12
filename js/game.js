@@ -757,7 +757,8 @@ export class Game {
             attackType: pud.attackType || "normal",
             effects: new Set(),
             buffedBy: new Set(),
-            life: 3.0
+            life: 3.0,
+            trail: [],
           });
           sfxShoot();
         }
@@ -774,7 +775,10 @@ export class Game {
       p.x += p.vx * dt;
       p.y += p.vy * dt;
 
-      for (const belt of this.belts) {
+      if (!p.trail) p.trail = [];
+      p.trail.unshift({ x: p.x, y: p.y });
+      const maxTrail = 14;
+      while (p.trail.length > maxTrail) p.trail.pop();
         for (let si = 0; si < belt.slots.length; si++) {
           const pud = belt.slots[si].pudding;
           if (pud && !pud.isDead && pud.mechanic && pud.mechanic.startsWith("buff_")) {
@@ -836,7 +840,8 @@ export class Game {
                  attackType: "normal",
                  effects: new Set(p.effects),
                  buffedBy: new Set(),
-                 life: 1.0
+                 life: 1.0,
+                 trail: [],
                });
                splits++;
                if (splits >= 2) break;
@@ -862,6 +867,82 @@ export class Game {
 
   addFloatText(x, y, text, color) {
     this.floatTexts.push({ x, y, text, color, life: 0.9 });
+  }
+
+  /** 拖尾 + 弹芯，增强打击感 */
+  drawProjectile(ctx, p) {
+    const fire = p.effects.has("fire");
+    const trail = p.trail && p.trail.length >= 2 ? p.trail : null;
+    const coreFill = fire ? "#ff9228" : "#fff85c";
+    const tailMid = fire ? "rgba(255,130,55," : "rgba(255,235,130,";
+    const tailHot = fire ? "rgba(255,80,30," : "rgba(255,255,210,";
+
+    ctx.save();
+
+    if (trail) {
+      for (let i = trail.length - 1; i >= 0; i--) {
+        const pt = trail[i];
+        const t = trail.length > 1 ? i / (trail.length - 1) : 0;
+        const alpha = 0.06 + t * 0.38;
+        const rad = 1.5 + t * 5;
+        if (fire) {
+          ctx.fillStyle = `rgba(255,${85 + t * 120},${35 + t * 50},${alpha})`;
+        } else {
+          ctx.fillStyle = `rgba(255,${210 + t * 45},${70 + t * 110},${alpha})`;
+        }
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, rad, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      const tail = trail[trail.length - 1];
+      const grad = ctx.createLinearGradient(tail.x, tail.y, p.x, p.y);
+      grad.addColorStop(0, tailMid + "0)");
+      grad.addColorStop(0.4, tailMid + "0.25)");
+      grad.addColorStop(0.82, tailMid + "0.5)");
+      grad.addColorStop(1, tailHot + "0.65)");
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = 6;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      ctx.moveTo(tail.x, tail.y);
+      for (let i = trail.length - 2; i >= 0; i--) {
+        ctx.lineTo(trail[i].x, trail[i].y);
+      }
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = fire ? "rgba(255,220,160,0.45)" : "rgba(255,255,230,0.5)";
+      ctx.stroke();
+    } else {
+      const spd = Math.hypot(p.vx, p.vy) || 260;
+      const nx = -p.vx / spd;
+      const ny = -p.vy / spd;
+      for (let k = 12; k >= 1; k--) {
+        const t = k / 12;
+        ctx.globalAlpha = 0.06 + t * 0.38;
+        ctx.fillStyle = fire ? "#ff7820" : "#ffe566";
+        ctx.beginPath();
+        ctx.arc(p.x + nx * 6.5 * k, p.y + ny * 6.5 * k, 1.2 + t * 4.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    ctx.shadowColor = fire
+      ? "rgba(255, 140, 50, 0.95)"
+      : "rgba(255, 250, 150, 0.9)";
+    ctx.shadowBlur = fire ? 14 : 12;
+    ctx.fillStyle = coreFill;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 6.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = fire ? "#3a1208" : "#1a1608";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.restore();
   }
 
   draw() {
@@ -942,19 +1023,7 @@ export class Game {
     }
 
     for (const p of this.projectiles) {
-      ctx.save();
-      const fire = p.effects.has("fire");
-      ctx.fillStyle = fire ? "#ff6b2d" : "#fff44f";
-      ctx.shadowColor = fire ? "rgba(255, 120, 40, 0.95)" : "rgba(255, 244, 100, 0.85)";
-      ctx.shadowBlur = fire ? 12 : 10;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, 6.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = fire ? "#4a1808" : "#2a2810";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-      ctx.restore();
+      this.drawProjectile(ctx, p);
     }
 
     ctx.font = '700 15px "Silkscreen", "Noto Sans SC", monospace';
