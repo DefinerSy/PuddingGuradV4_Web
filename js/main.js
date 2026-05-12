@@ -461,6 +461,8 @@ function frame(ts) {
         if (pud.mechanic === "defender") {
           text += `<p>防御型 - 击退敌人</p>`;
           text += `<p>生命值: ${Math.ceil(pud.hp)} / ${Math.ceil(pud.maxHp)}</p>`;
+        } else if (pud.mechanic === "buff_killcharge") {
+          text += `<p>增益型 - 周期为「王权齐射」蓄力；子弹穿过后击杀额外蓄力（可叠层）。</p>`;
         } else if (pud.mechanic === "buff_fire") {
           text += `<p>增益型 - 附加火焰</p>`;
         } else {

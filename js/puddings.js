@@ -129,6 +129,16 @@ export const PUDDING_TYPES = {
     hue: 0,
     mechanic: "buff_fire"
   },
+  /** 不攻击：周期为王权齐射蓄力；子弹穿过后击杀时额外蓄力（可叠多层穿过多个该布丁） */
+  starwell: {
+    name: "星井甘露",
+    traits: ["regen"],
+    baseDamage: 0,
+    baseInterval: 999,
+    baseRange: 0,
+    hue: 268,
+    mechanic: "buff_killcharge"
+  },
   grape: {
     name: "葡萄连弹",
     traits: ["rapid"],
@@ -155,7 +165,7 @@ export function makePudding(typeId, level = 1) {
   const hpMultiplier = Math.pow(1.8, level - 1);
   const dmgMultiplier = Math.pow(1.8, level - 1);
   const hp = (def.baseHp || 100) * hpMultiplier;
-  return {
+  const pud = {
     typeId,
     level,
     traits: [...def.traits],
@@ -170,6 +180,13 @@ export function makePudding(typeId, level = 1) {
     attackCd: 0,
     hitFlash: 0,
   };
+  if (def.mechanic === "buff_killcharge") {
+    const lv = pud.level || 1;
+    const baseAura = 4.1;
+    pud.killChargeAuraInterval = baseAura / (1 + 0.18 * (lv - 1));
+    pud.killChargeAuraTimer = 1.2 + Math.random() * 0.9 * pud.killChargeAuraInterval;
+  }
+  return pud;
 }
 
 export function puddingDisplayName(p) {

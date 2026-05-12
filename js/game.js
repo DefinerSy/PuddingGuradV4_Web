@@ -254,6 +254,19 @@ export class Game {
     return true;
   }
 
+  /**
+   * 增加「王权齐射」蓄力（不超过上限）。
+   * @returns {number} 实际增加的格数
+   */
+  addKingSkillCharge(n = 1) {
+    if (this.phase !== "combat" || n <= 0) return 0;
+    const cap = this.kingSkillKillsRequired;
+    if (this.kingSkillKillCharge >= cap) return 0;
+    const add = Math.min(n, cap - this.kingSkillKillCharge);
+    this.kingSkillKillCharge += add;
+    return add;
+  }
+
   pickPuddingAt(mx, my, opts = {}) {
     const hitR = opts.hitR ?? PUDDING_HIT_R;
     const cyAdj = opts.cyAdj ?? 0;
@@ -679,9 +692,7 @@ export class Game {
       if (e.hp <= 0) {
         this.gold += e.bounty;
         sfxEnemyDeath();
-        if (this.phase === "combat" && this.kingSkillKillCharge < this.kingSkillKillsRequired) {
-          this.kingSkillKillCharge++;
-        }
+        this.addKingSkillCharge(1);
         if (e.boss) this.victory = true;
         continue;
       }
@@ -766,6 +777,19 @@ export class Game {
         if (pud.hp <= 0) {
            pud.isDead = true;
            continue;
+        }
+
+        if (pud.mechanic === "buff_killcharge") {
+          const interval = pud.killChargeAuraInterval ?? 4.1;
+          pud.killChargeAuraTimer =
+            (pud.killChargeAuraTimer ?? interval * 0.75) - dt;
+          if (pud.killChargeAuraTimer <= 0) {
+            const gained = this.addKingSkillCharge(1);
+            if (gained > 0) {
+              this.addFloatText(pos.x, pos.y - 30, "+蓄力", "#e8c878");
+            }
+            pud.killChargeAuraTimer = interval;
+          }
         }
 
         if (pud.mechanic === "defender" || (pud.mechanic && pud.mechanic.startsWith("buff_"))) {
@@ -854,6 +878,8 @@ export class Game {
                 if (pud.mechanic === "buff_fire") {
                   p.effects.add("fire");
                   p.damage *= 1.25;
+                } else if (pud.mechanic === "buff_killcharge") {
+                  p.killChargeKillBonus = (p.killChargeKillBonus || 0) + 1;
                 }
               }
             }
@@ -890,6 +916,21 @@ export class Game {
          hitEnemy.hp -= p.damage;
          hitEnemy.hitFlash = 0.12;
          sfxHitEnemy(Math.floor(hitEnemy.x + hitEnemy.y));
+
+         if (hitEnemy.hp <= 0) {
+           const bonus = p.killChargeKillBonus || 0;
+           if (bonus > 0) {
+             const gained = this.addKingSkillCharge(bonus);
+             if (gained > 0) {
+               this.addFloatText(
+                 hitEnemy.x,
+                 hitEnemy.y - 28,
+                 bonus > 1 ? `+${gained}槽` : "+槽",
+                 "#ffd45a"
+               );
+             }
+           }
+         }
          
          if (p.effects.has("fire")) {
            hitEnemy.activeEffects.fire = { duration: 3.5, tickTimer: 0 };
@@ -921,6 +962,7 @@ export class Game {
                  attackType: "normal",
                  effects: new Set(p.effects),
                  buffedBy: new Set(),
+                 killChargeKillBonus: p.killChargeKillBonus || 0,
                  life: 1.0,
                  trail: [],
                });
@@ -954,6 +996,7 @@ export class Game {
   drawProjectile(ctx, p) {
     const royal = p.attackType === "king_skill";
     const fire = !royal && p.effects.has("fire");
+    const killChargeBuff = !royal && (p.killChargeKillBonus || 0) > 0;
     const spd = Math.hypot(p.vx, p.vy) || 260;
     const nx = p.vx / spd;
     const ny = p.vy / spd;
@@ -1004,6 +1047,15 @@ export class Game {
         : "rgba(30,24,8,0.5)";
     ctx.lineWidth = royal ? 3.5 : 3;
     ctx.stroke();
+
+    if (killChargeBuff) {
+      ctx.strokeStyle = "rgba(255, 215, 120, 0.55)";
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+    }
 
     const trail = p.trail && p.trail.length >= 2 ? p.trail : null;
     if (trail) {
@@ -1056,6 +1108,13 @@ export class Game {
     ctx.strokeStyle = royal ? "#2a1048" : fire ? "#3a1208" : "#1a1608";
     ctx.lineWidth = royal ? 2.5 : 2;
     ctx.stroke();
+    if (killChargeBuff) {
+      ctx.strokeStyle = "rgba(255, 210, 90, 0.9)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 9.5, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     ctx.shadowBlur = 0;
     ctx.restore();
   }
@@ -1345,6 +1404,21 @@ export class Game {
     ctx.arc(x - 5.5, y - 6.5, 0.9, 0, Math.PI * 2);
     ctx.arc(x + 6.5, y - 6.5, 0.9, 0, Math.PI * 2);
     ctx.fill();
+    
+    if (pud.mechanic === "buff_killcharge") {
+      ctx.strokeStyle = "rgba(255, 210, 130, 0.95)";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([3, 5]);
+      ctx.beginPath();
+      ctx.arc(x, y - 1, 25, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "rgba(255, 230, 160, 0.9)";
+      ctx.font = "10px Silkscreen, monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("★", x, y + 10);
+    }
     
     if (pud.hp !== undefined && pud.hp < pud.maxHp) {
        ctx.fillStyle = "#0c060c";
