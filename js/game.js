@@ -207,6 +207,10 @@ export class Game {
     this.shopOpened = false;
     this.enemies = [];
     this.enemyShots = [];
+    for (const b of this.belts) {
+      b.hijackEnemyId = null;
+      b.hijackScrollSpeed = 0;
+    }
 
     const counts = aggregateTraitCounts(this.belts);
     const syn = computeSynergyMultipliers(counts);
@@ -311,6 +315,7 @@ export class Game {
     let bestDx = Infinity;
     for (let bi = 0; bi < this.belts.length; bi++) {
       const belt = this.belts[bi];
+      if (belt.hijackEnemyId) continue;
       const dx = Math.abs(mx - belt.x);
       if (dx <= BELT_HIT_HW && dx < bestDx) {
         bestDx = dx;
@@ -343,6 +348,7 @@ export class Game {
       beltIndex >= this.belts.length
     )
       return;
+    if (this.belts[beltIndex]?.hijackEnemyId) return;
     if (this.drag?.kind === "pudding") return;
     if (this.drag?.kind === "belt") {
       const b = this.belts[this.drag.bi];
@@ -373,6 +379,10 @@ export class Game {
     }
     const belt = this.belts[bi];
     if (!belt) return;
+    if (belt.hijackEnemyId) {
+      this.clearKeyboardBeltFollow();
+      return;
+    }
     const ty = clamp(
       my,
       PLAY_TOP,
@@ -418,6 +428,10 @@ export class Game {
     if (!this.drag) return;
     if (this.drag.kind === "belt") {
       const belt = this.belts[this.drag.bi];
+      if (belt.hijackEnemyId) {
+        this.drag = null;
+        return;
+      }
       const dy = my - this.dragLastMy;
       this.dragLastMy = my;
       belt.scroll += dy;
@@ -470,6 +484,7 @@ export class Game {
 
     this.updateSpawns(dt);
     this.updateEnemies(dt);
+    this.applyBeltHijackScroll(dt);
     this.updateEnemyShots(dt);
 
     if (this.gameOver) {
@@ -555,6 +570,10 @@ export class Game {
       rangedCd = 0.55 + Math.random() * 0.55;
       rangedBoltDmgPud = Math.max(9, Math.floor(cfg.damageToKing * 1.15));
       rangedBoltDmgKing = Math.max(4, Math.floor(cfg.damageToKing * 0.42));
+    } else if (kind === "hijacker") {
+      speedMul = 0.9;
+      hpMul = 1.12;
+      hitR = 19;
     }
 
     const speed = cfg.speed * speedMul;
@@ -586,7 +605,39 @@ export class Game {
       rangedBoltDmgKing,
     };
 
+    if (kind === "hijacker") {
+      const freeBi = [];
+      for (let i = 0; i < this.belts.length; i++) {
+        if (!this.belts[i].hijackEnemyId) freeBi.push(i);
+      }
+      const choices = freeBi.length ? freeBi : [0, 1, 2];
+      e.hijackBeltId = choices[Math.floor(Math.random() * choices.length)];
+      e.hijackPhase = "approach";
+      e.hijackScrollSpeed =
+        (Math.random() < 0.5 ? -1 : 1) * (80 + Math.random() * 38);
+    }
+
     this.enemies.push(e);
+  }
+
+  /** 轨骇幽灵死亡或进王座时解除对环轨的劫持 */
+  releaseBeltHijackForEnemy(enemyId) {
+    if (!enemyId) return;
+    for (const b of this.belts) {
+      if (b.hijackEnemyId === enemyId) {
+        b.hijackEnemyId = null;
+        b.hijackScrollSpeed = 0;
+      }
+    }
+  }
+
+  applyBeltHijackScroll(dt) {
+    for (const belt of this.belts) {
+      if (!belt.hijackEnemyId) continue;
+      const v = belt.hijackScrollSpeed || 0;
+      if (v === 0) continue;
+      belt.scroll += v * dt;
+    }
   }
 
   updateEnemies(dt) {
@@ -655,6 +706,36 @@ export class Game {
             e.rangedCd = e.rangedInterval;
           }
           syncLaneY();
+        } else if (kind === "hijacker") {
+          const bi = e.hijackBeltId ?? 1;
+          const bx = BELT_CENTERS_X[bi] ?? BELT_CENTERS_X[1];
+          if (e.hijackPhase === "linked") {
+            e.vx = 0;
+            syncLaneY();
+          } else {
+            e.x += e.vx * dt;
+            syncLaneY();
+            if (e.hijackPhase === "approach" && e.x <= bx + 40) {
+              const belt = this.belts[bi];
+              if (belt && !belt.hijackEnemyId) {
+                e.hijackPhase = "linked";
+                e.x = Math.max(bx + 14, Math.min(e.x, bx + 34));
+                e.vx = 0;
+                belt.hijackEnemyId = e.id;
+                belt.hijackScrollSpeed = e.hijackScrollSpeed ?? 88;
+                if (this.keyboardBeltFollowBi === bi) {
+                  this.clearKeyboardBeltFollow();
+                }
+                if (this.drag?.kind === "belt" && this.drag.bi === bi) {
+                  belt.scroll = modPos(belt.scroll);
+                  this.drag = null;
+                }
+                this.addFloatText(belt.x, PLAY_TOP + 30, "轨道被劫持", "#ff9a4a");
+              } else {
+                e.hijackPhase = "failed";
+              }
+            }
+          }
         } else {
           e.x += e.vx * dt;
           syncLaneY();
@@ -683,6 +764,7 @@ export class Game {
     const remain = [];
     for (const e of this.enemies) {
       if (e.x <= reach) {
+        this.releaseBeltHijackForEnemy(e.id);
         this.kingHp -= e.damageToKing;
         sfxKingHurt();
         this.addFloatText(KING_X2, e.y, `-${e.damageToKing}`, "#ff6b8a");
@@ -690,6 +772,7 @@ export class Game {
         continue;
       }
       if (e.hp <= 0) {
+        this.releaseBeltHijackForEnemy(e.id);
         this.gold += e.bounty;
         sfxEnemyDeath();
         this.addKingSkillCharge(1);
@@ -1175,6 +1258,8 @@ export class Game {
       this.drawEnemy(ctx, e);
     }
 
+    this.drawHijackerTethers(ctx);
+
     for (const belt of this.belts) {
       this.drawBeltSlotsAndPuddings(ctx, belt);
     }
@@ -1222,6 +1307,29 @@ export class Game {
     ctx.fillText(`WAVE ${this.wave}`, CANVAS_W - 14, 30);
   }
 
+  drawHijackerTethers(ctx) {
+    const t = typeof performance !== "undefined" ? performance.now() : 0;
+    for (const e of this.enemies) {
+      if (e.enemyKind !== "hijacker" || e.hijackPhase !== "linked") continue;
+      const belt = this.belts[e.hijackBeltId];
+      if (!belt) continue;
+      const bx = belt.x;
+      const midY = (PLAY_TOP + PLAY_BOTTOM) * 0.5;
+      ctx.save();
+      ctx.strokeStyle = "rgba(255, 140, 70, 0.92)";
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([6, 11]);
+      ctx.lineDashOffset = -(t * 0.05) % 20;
+      ctx.beginPath();
+      ctx.moveTo(e.x, e.y);
+      ctx.lineTo(bx, midY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.lineDashOffset = 0;
+      ctx.restore();
+    }
+  }
+
   drawKing(ctx) {
     const cx = (KING_X1 + KING_X2) / 2;
     const cy = (PLAY_TOP + PLAY_BOTTOM) / 2;
@@ -1266,18 +1374,29 @@ export class Game {
     const hw = 26;
     const top = PLAY_TOP;
     const bot = PLAY_BOTTOM;
+    const hijacked = !!belt.hijackEnemyId;
     const keyFollow =
-      this.keyboardBeltFollowBi === belt.id;
+      !hijacked && this.keyboardBeltFollowBi === belt.id;
     ctx.save();
-    ctx.fillStyle = keyFollow
-      ? "rgba(55, 40, 72, 0.92)"
-      : "rgba(38, 28, 52, 0.88)";
+    ctx.fillStyle = hijacked
+      ? "rgba(72, 32, 28, 0.93)"
+      : keyFollow
+        ? "rgba(55, 40, 72, 0.92)"
+        : "rgba(38, 28, 52, 0.88)";
     ctx.fillRect(x - hw, top, hw * 2, bot - top);
-    ctx.strokeStyle = keyFollow ? "#9ee671" : "#4a3a5c";
-    ctx.lineWidth = keyFollow ? 3 : 2;
+    ctx.strokeStyle = hijacked
+      ? "#ff7a44"
+      : keyFollow
+        ? "#9ee671"
+        : "#4a3a5c";
+    ctx.lineWidth = hijacked ? 3 : keyFollow ? 3 : 2;
     ctx.strokeRect(x - hw + 1, top + 1, hw * 2 - 2, bot - top - 2);
 
-    ctx.strokeStyle = keyFollow ? "rgba(158,230,113,0.75)" : "rgba(158, 230, 113, 0.35)";
+    ctx.strokeStyle = hijacked
+      ? "rgba(255, 120, 60, 0.75)"
+      : keyFollow
+        ? "rgba(158,230,113,0.75)"
+        : "rgba(158, 230, 113, 0.35)";
     ctx.lineWidth = 2;
     ctx.setLineDash([6, 8]);
     ctx.lineDashOffset = -modPos(belt.scroll);
@@ -1297,11 +1416,15 @@ export class Game {
     ctx.arc(x, bot, hw, Math.PI, 0, true);
     ctx.stroke();
 
-    ctx.fillStyle = keyFollow ? "rgba(158,230,113,0.35)" : "rgba(158, 230, 113, 0.2)";
+    ctx.fillStyle = hijacked
+      ? "rgba(255, 140, 90, 0.45)"
+      : keyFollow
+        ? "rgba(158,230,113,0.35)"
+        : "rgba(158, 230, 113, 0.2)";
     ctx.font = '700 11px "Silkscreen", monospace';
     ctx.textAlign = "center";
-    ctx.fillText("↻", x, top - 6);
-    ctx.fillText("↻", x, bot + 16);
+    ctx.fillText(hijacked ? "!" : "↻", x, top - 6);
+    ctx.fillText(hijacked ? "!" : "↻", x, bot + 16);
     ctx.restore();
   }
 
@@ -1446,6 +1569,8 @@ export class Game {
       fill = "#58d8a8";
     } else if (kind === "ranged") {
       fill = "#ff7ab0";
+    } else if (kind === "hijacker") {
+      fill = "#ffb347";
     } else {
       fill = "#a8c8ff";
     }

@@ -6,17 +6,20 @@ export function rollEnemyKindForWave(wave) {
   if (wave <= 7) {
     if (r < 0.17) return "shifter";
     if (r < 0.28) return "ranged";
+    if (wave >= 5 && r < 0.36) return "hijacker";
     return "ghost";
   }
 
   if (wave <= 12) {
-    if (r < 0.21) return "shifter";
-    if (r < 0.36) return "ranged";
+    if (r < 0.2) return "shifter";
+    if (r < 0.35) return "ranged";
+    if (r < 0.46) return "hijacker";
     return "ghost";
   }
 
-  if (r < 0.26) return "shifter";
-  if (r < 0.48) return "ranged";
+  if (r < 0.24) return "shifter";
+  if (r < 0.42) return "ranged";
+  if (r < 0.54) return "hijacker";
   return "ghost";
 }
 
