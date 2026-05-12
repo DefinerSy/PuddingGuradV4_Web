@@ -309,6 +309,7 @@ export class Game {
     return best;
   }
 
+  /** 用于开始「空白拖轨」；被劫持的轨返回 null，但 pickPuddingAt / pickSlotAt 仍可操作该轨上的布丁与槽位 */
   hitBeltColumn(mx, my) {
     if (my < PLAY_TOP || my > PLAY_BOTTOM) return null;
     let best = null;
@@ -415,6 +416,7 @@ export class Game {
       return { type: "pudding" };
     }
 
+    /** 仅禁止「空白拖轨」滚动；劫持轨上仍可拖布丁换位（上分支已处理） */
     const col = this.hitBeltColumn(mx, my);
     if (col !== null) {
       this.drag = { kind: "belt", bi: col };
